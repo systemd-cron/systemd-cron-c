@@ -137,7 +137,7 @@ static int parse_crontab(const char *filename, char *usertab) {
         char line[1024];
         char *p;
 
-        char frequency[11], m[25], h[25], dom[25], mon[25], dow[25], user[65], command[1024];
+        char frequency[11], m[25], h[25], dom[25], mon[25], dow[25], user[65];
         int remainder = 0;
         int remainder2 = 0;
 
@@ -189,6 +189,20 @@ static int parse_crontab(const char *filename, char *usertab) {
                           (pos_blank == NULL || pos_equal < pos_blank)) {
                           pos_equal[0]='\0';
                           char *value=pos_equal+1;
+
+                          // lstrip
+                          while (value[0] == '"' || value[0] == '\''){
+                              value++;
+                          }
+
+                          // rstrip
+                          for(unsigned int i=strlen(value)-1; i>0; i--) {
+                              if (value[i] == '"' || value[i] == '\'')
+                                  value[i] = '\0';
+                              else
+                                  break;
+                          }
+
                           curr = head;
                           bool found = false;
                           while(curr) {
@@ -196,6 +210,7 @@ static int parse_crontab(const char *filename, char *usertab) {
                                   curr->val = (char *)realloc(curr->val, strlen(value)+1);
                                   strcpy(curr->val, value);
                                   found = true;
+                                  break;
                               }
                               curr = curr->next;
                           }
@@ -226,7 +241,10 @@ static int parse_crontab(const char *filename, char *usertab) {
                 printf("COMMAND: %s\n", &line[remainder+remainder2]);
                 curr = head;
                 while(curr) {
-                    printf("%s=\"%s\" ", curr->key, curr->val);
+                    if (strchr(curr->val, ' '))
+                        printf("%s=\"%s\" ", curr->key, curr->val);
+                    else
+                        printf("%s=%s ", curr->key, curr->val);
                     curr = curr->next;
                 }
                 printf("\n\n");
