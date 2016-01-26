@@ -227,15 +227,21 @@ static int parse_crontab(const char *filename, char *usertab) {
                 curr = head;
                 while(curr) {
                     printf("%s=\"%s\" ", curr->key, curr->val);
-                    free(curr->key);
-                    free(curr->val);
-                    head = curr->next;
-                    free(curr);
-                    curr = head;
+                    curr = curr->next;
                 }
                 printf("\n\n");
         }
         fclose(fp);
+
+        curr = head;
+        while(curr) {
+                free(curr->key);
+                free(curr->val);
+                head = curr->next;
+                free(curr);
+                curr = head;
+        }
+
         return 0;
 }
 
