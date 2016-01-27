@@ -315,6 +315,14 @@ static int parse_crontab(const char *dirname, const char *filename, char *userta
                 curr = head;
         }
 
+        seq_curr = seq_head;
+        while(seq_curr) {
+                free(seq_curr->key);
+                seq_head = seq_curr->next;
+                free(seq_curr);
+                seq_curr = seq_head;
+        }
+
         return 0;
 }
 
