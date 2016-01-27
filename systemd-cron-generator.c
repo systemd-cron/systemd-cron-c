@@ -31,6 +31,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <ctype.h>
+#include <bsd/md5.h>
 
 #ifndef USER_CRONTABS
 #define USER_CRONTABS "/var/spool/cron/crontabs"
@@ -113,7 +114,6 @@ static int parse_crontab(const char *dirname, const char *filename, char *userta
         /* out */
         sequence *seq_head = NULL;
         sequence *seq_curr = NULL;
-        char *md5 = NULL;
         FILE *outp = NULL;
         char *unit = NULL;
         char *outf = NULL;
@@ -215,9 +215,16 @@ static int parse_crontab(const char *dirname, const char *filename, char *userta
                 parse_dow(dow, &dows[0]);
                 asprintf(&schedule, "%s*-%s-%s %s:%s:00", dows, mon, dom, h, m);
                 if (persistent) {
-                    asprintf(&md5, "MD5%s%s", h, m);
+                    unsigned char digest[16];
+                    MD5_CTX context;
+                    MD5Init(&context);
+                    MD5Update(&context, (unsigned char *)schedule, strlen(schedule)+1);
+                    MD5Update(&context, (unsigned char *)command, strlen(command));
+                    MD5Final(digest, &context);
+                    char md5[33];
+                    for(int i = 0; i < 16; ++i)
+                        sprintf(&md5[i*2], "%02x", (unsigned int)digest[i]);
                     asprintf(&unit, "cron-%s-%s-%s", filename, user, md5);
-                    free(md5);
                 } else {
                     seq_curr = seq_head;
                     bool found = false;
