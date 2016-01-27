@@ -30,6 +30,7 @@
 #include <fcntl.h>
 #include <string.h>
 #include <stdlib.h>
+#include <ctype.h>
 
 #ifndef USER_CRONTABS
 #define USER_CRONTABS "/var/spool/cron/crontabs"
@@ -89,6 +90,8 @@ static int parse_crontab(const char *dirname, const char *filename, char *userta
         char frequency[11], m[25], h[25], dom[25], mon[25], dow[25], user[65];
         char dows[128];
         char *schedule;
+        bool persistent = false;
+        int seq = 0;
 
         int remainder = 0;
         int remainder2 = 0;
@@ -163,6 +166,14 @@ static int parse_crontab(const char *dirname, const char *filename, char *userta
                                   break;
                           }
 
+                          if(strcmp("PERSISTENT", line) == 0) {
+                              for (int i=0; value[i]; i++)
+                                   value[i] = tolower((unsigned char)value[i]);
+                              persistent = (!strcmp(value,"true") ||
+                                            !strcmp(value,"yes") ||
+                                            !strcmp(value,"1"));
+                          }
+
                           curr = head;
                           bool found = false;
                           while(curr) {
@@ -195,10 +206,16 @@ static int parse_crontab(const char *dirname, const char *filename, char *userta
 
                 parse_dow(dow, &dows[0]);
                 asprintf(&schedule, "%s*-%s-%s %s:%s:00", dows, mon, dom, h, m);
-                asprintf(&md5, "%s%s", h, m); //XXX
-                asprintf(&unit, "cron-%s-%s-%s", filename, user, md5);
-                asprintf(&outf, "%s/%s.timer", arg_dest, unit);
+                if (persistent) {
+                    asprintf(&md5, "MD5%s%s", h, m);
+                    asprintf(&unit, "cron-%s-%s-%s", filename, user, md5);
+                    free(md5);
+                } else {
+                    asprintf(&unit, "cron-%s-%s-%d", filename, user, seq++);
+                    // seqs.setdefault(job['j']+job['u']...
+                }
 
+                asprintf(&outf, "%s/%s.timer", arg_dest, unit);
                 outp = fopen(outf, "w");
                 fputs("[Unit]\n", outp);
                 fprintf(outp, "Description=[Cron] \"%s\"\n", line);
@@ -209,6 +226,8 @@ static int parse_crontab(const char *dirname, const char *filename, char *userta
                 fputs("[Timer]\n", outp);
                 fprintf(outp, "OnCalendar=%s\n", schedule);
                 fprintf(outp, "Unit=%s.service\n", unit);
+                if (persistent)
+                    fputs("Persistent=true\n", outp);
                 fclose(outp);
 
                 free(outf);
@@ -244,7 +263,6 @@ static int parse_crontab(const char *dirname, const char *filename, char *userta
                 fclose(outp);
 
                 free(schedule);
-                free(md5);
                 free(unit);
                 free(outf);
         }
