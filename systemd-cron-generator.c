@@ -152,7 +152,7 @@ static int parse_crontab(const char *filename, char *usertab) {
                           }
 
                           // rstrip
-                          for(unsigned int i=strlen(value)-1; i>0; i--) {
+                          for(int i=strlen(value)-1; i>0; i--) {
                               if (value[i] == '"' || value[i] == '\'')
                                   value[i] = '\0';
                               else
@@ -226,7 +226,9 @@ static int parse_crontab(const char *filename, char *usertab) {
                     fputs("Environment=", outp);
                     curr = head;
                     while(curr) {
-                        if (strchr(curr->val, ' '))
+                        if (strlen(curr->val) == 0)
+                            {}
+                        else if (strchr(curr->val, ' '))
                             fprintf(outp, "%s=\"%s\" ", curr->key, curr->val);
                         else
                             fprintf(outp, "%s=%s ", curr->key, curr->val);
