@@ -119,8 +119,10 @@ static int parse_crontab(const char *dirname, const char *filename, char *userta
         char *outf = NULL;
 
         fp = fopen(fullname, "r");
-        if (!fp)
+        if (!fp) {
+            free(fullname);
             return -errno;
+        }
 
         while (fgets(line, sizeof(line), fp)) {
                 p = strchr(line, '\n');
