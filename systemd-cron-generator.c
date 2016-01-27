@@ -78,6 +78,14 @@ struct text_dict
 };
 typedef struct text_dict env;
 
+struct int_dict
+{
+    char *key;
+    int val;
+    struct int_dict *next;
+};
+typedef struct int_dict sequence;
+
 static int parse_crontab(const char *dirname, const char *filename, char *usertab) {
         char *fullname;
         asprintf(&fullname, "%s/%s", dirname, filename);
@@ -90,7 +98,6 @@ static int parse_crontab(const char *dirname, const char *filename, char *userta
         char dows[128];
         char *schedule;
         bool persistent = false;
-        int seq = 0;
 
         int remainder = 0;
         int remainder2 = 0;
@@ -104,6 +111,8 @@ static int parse_crontab(const char *dirname, const char *filename, char *userta
         env *curr = NULL;
 
         /* out */
+        sequence *seq_head = NULL;
+        sequence *seq_curr = NULL;
         char *md5 = NULL;
         FILE *outp = NULL;
         char *unit = NULL;
@@ -210,8 +219,25 @@ static int parse_crontab(const char *dirname, const char *filename, char *userta
                     asprintf(&unit, "cron-%s-%s-%s", filename, user, md5);
                     free(md5);
                 } else {
-                    asprintf(&unit, "cron-%s-%s-%d", filename, user, seq++);
-                    // seqs.setdefault(job['j']+job['u']...
+                    seq_curr = seq_head;
+                    bool found = false;
+                    while(seq_curr) {
+                        if (strcmp(seq_curr->key, user) == 0) {
+                            seq_curr->val++;
+                            found = true;
+                            break;
+                        }
+                        seq_curr = seq_curr->next;
+                    }
+                    if (!found) {
+                        seq_curr = (sequence *)malloc(sizeof(sequence));
+                        seq_curr->key = (char *)malloc(strlen(user)+1);
+                        strcpy(seq_curr->key, user);
+                        seq_curr->val = 0;
+                        seq_curr->next = seq_head;
+                        seq_head = seq_curr;
+                    }
+                    asprintf(&unit, "cron-%s-%s-%d", filename, user, seq_curr->val);
                 }
 
                 asprintf(&outf, "%s/%s.timer", arg_dest, unit);
