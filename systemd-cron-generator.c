@@ -171,6 +171,7 @@ static int parse_crontab(const char *dirname, const char *filename, char *userta
                               persistent = (!strcmp(value,"true") ||
                                             !strcmp(value,"yes") ||
                                             !strcmp(value,"1"));
+                              continue;
                           }
 
                           curr = head;
