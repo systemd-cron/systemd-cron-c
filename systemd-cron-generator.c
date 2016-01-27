@@ -111,7 +111,6 @@ static int parse_crontab(const char *dirname, const char *filename, char *userta
         char *outf = NULL;
 
         fp = fopen(fullname, "r");
-        free(fullname);
         if (!fp)
             return -errno;
 
@@ -218,14 +217,16 @@ static int parse_crontab(const char *dirname, const char *filename, char *userta
                 asprintf(&outf, "%s/%s.timer", arg_dest, unit);
                 outp = fopen(outf, "w");
                 fputs("[Unit]\n", outp);
-                fprintf(outp, "Description=[Cron] \"%s\"\n", line);
+                fprintf(outp, "Description=[Timer] \"%s\"\n", line);
+                fputs("Documentation=man:systemd-crontab-generator(8)\n", outp);
                 fputs("PartOf=cron.target\n", outp);
                 fputs("RefuseManualStart=true\n", outp);
-                fputs("RefuseManualStop=true\n\n", outp);
+                fputs("RefuseManualStop=true\n", outp);
+                fprintf(outp, "SourcePath=%s\n\n", fullname);
 
                 fputs("[Timer]\n", outp);
-                fprintf(outp, "OnCalendar=%s\n", schedule);
                 fprintf(outp, "Unit=%s.service\n", unit);
+                fprintf(outp, "OnCalendar=%s\n", schedule);
                 if (persistent)
                     fputs("Persistent=true\n", outp);
                 fclose(outp);
@@ -234,12 +235,15 @@ static int parse_crontab(const char *dirname, const char *filename, char *userta
                 asprintf(&outf, "%s/%s.service", arg_dest, unit);
                 outp = fopen(outf, "w");
                 fputs("[Unit]\n", outp);
-                fputs("Description=[Cron] %s\n", outp);
+                fprintf(outp, "Description=[Cron] \"%s\"\n", line);
+                fputs("Documentation=man:systemd-crontab-generator(8)\n", outp);
                 fputs("RefuseManualStart=true\n", outp);
-                fputs("RefuseManualStop=true\n\n", outp);
+                fputs("RefuseManualStop=true\n", outp);
+                fprintf(outp, "SourcePath=%s\n\n", fullname);
 
                 fputs("[Service]\n", outp);
                 fputs("Type=oneshot\n", outp);
+                fputs("IgnoreSIGPIPE=false\n", outp);
                 if (strcmp(user, "root")) {
                     fprintf(outp, "User=%s\n", user);
                 }
@@ -266,6 +270,7 @@ static int parse_crontab(const char *dirname, const char *filename, char *userta
                 free(unit);
                 free(outf);
         }
+        free(fullname);
         fclose(fp);
 
         curr = head;
