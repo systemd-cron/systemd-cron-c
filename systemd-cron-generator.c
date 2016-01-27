@@ -78,7 +78,10 @@ struct dict
 
 typedef struct dict env;
 
-static int parse_crontab(const char *filename, char *usertab) {
+static int parse_crontab(const char *dirname, const char *filename, char *usertab) {
+        char *fullname;
+        asprintf(&fullname, "%s/%s", dirname, filename);
+
         FILE *fp = NULL;
         char line[1024];
         char *p;
@@ -104,7 +107,8 @@ static int parse_crontab(const char *filename, char *usertab) {
         char *unit = NULL;
         char *outf = NULL;
 
-        fp = fopen(filename, "r");
+        fp = fopen(fullname, "r");
+        free(fullname);
         if (!fp)
             return -errno;
 
@@ -192,7 +196,7 @@ static int parse_crontab(const char *filename, char *usertab) {
                 parse_dow(dow, &dows[0]);
                 asprintf(&schedule, "%s*-%s-%s %s:%s:00", dows, mon, dom, h, m);
                 asprintf(&md5, "%s%s", h, m); //XXX
-                asprintf(&unit, "cron-%s-%s-%s", user, user, md5);
+                asprintf(&unit, "cron-%s-%s-%s", filename, user, md5);
                 asprintf(&outf, "%s/%s.timer", arg_dest, unit);
 
                 outp = fopen(outf, "w");
@@ -261,7 +265,6 @@ static int parse_crontab(const char *filename, char *usertab) {
 int parse_dir(bool system, const char *dirname) {
 	DIR *dirp;
 	struct dirent *dent;
-        char *fullname = NULL;
 
 	dirp = opendir(dirname);
 	if (dirp == NULL) {
@@ -271,12 +274,10 @@ int parse_dir(bool system, const char *dirname) {
 	while ((dent = readdir(dirp))) {
                 if (dent->d_name[0] == '.') // '.', '..', '.placeholder'
                     continue;
-                asprintf(&fullname,"%s/%s", dirname, dent->d_name);
                 if (system)
-                    parse_crontab(fullname, NULL);
+                    parse_crontab(dirname, dent->d_name, NULL);
                 else
-                    parse_crontab(fullname, dent->d_name);
-                free(fullname);
+                    parse_crontab(dirname, dent->d_name, dent->d_name);
 	}
         closedir(dirp);
         return 0;
@@ -287,7 +288,7 @@ int main(int argc, char *argv[]) {
                 arg_dest = argv[1];
 
         umask(0022);
-        parse_crontab("/etc/crontab", NULL);
+        parse_crontab("/etc", "crontab", NULL);
         parse_dir(true, "/etc/cron.d");
         parse_dir(false, USER_CRONTABS);
 
