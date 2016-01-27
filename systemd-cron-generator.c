@@ -70,14 +70,13 @@ static int parse_dow(char *dow, char *dows){
         return 0;
 }
 
-struct dict
+struct text_dict
 {
     char *key;
     char *val;
-    struct dict *next;
+    struct text_dict *next;
 };
-
-typedef struct dict env;
+typedef struct text_dict env;
 
 static int parse_crontab(const char *dirname, const char *filename, char *usertab) {
         char *fullname;
