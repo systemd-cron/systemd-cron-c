@@ -87,6 +87,16 @@ struct int_dict
 };
 typedef struct int_dict sequence;
 
+void compress_blanks(char *string) {
+    int count = 0;
+
+    for (int i = 0; string[i]; i++)
+        if (!(string[i] == ' ' && string[i+1] == ' '))
+            string[count++] = string[i];
+
+    string[count] = '\0';
+}
+
 static int parse_crontab(const char *dirname, const char *filename, char *usertab) {
         char *fullname;
         asprintf(&fullname, "%s/%s", dirname, filename);
@@ -127,6 +137,7 @@ static int parse_crontab(const char *dirname, const char *filename, char *userta
         while (fgets(line, sizeof(line), fp)) {
                 p = strchr(line, '\n');
                 p[0] = '\0';
+                compress_blanks(line);
                 switch(line[0]) {
                     case '\0':
                       continue;
