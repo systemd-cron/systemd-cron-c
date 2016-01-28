@@ -37,6 +37,10 @@
 #define USER_CRONTABS "/var/spool/cron/crontabs"
 #endif
 
+#ifndef UNITDIR
+#define UNITDIR "/lib/systemd/system"
+#endif
+
 static const char *arg_dest = "/tmp";
 bool debug = false;
 
@@ -55,7 +59,7 @@ void syslog(int level, char *message, char *message2) {
     fprintf(out, "systemd-crontab-generator[%d]: %s", getpid(), message);
 
     if (message2 != NULL)
-        fprintf(out, " %s", message2);
+        fprintf(out, "%s", message2);
 
     fprintf(out, "\n");
     fflush(out);
@@ -152,7 +156,7 @@ static int parse_crontab(const char *dirname, const char *filename, char *userta
 
         fp = fopen(fullname, "r");
         if (!fp) {
-            syslog(3, "cannot read", fullname);
+            syslog(3, "cannot read ", fullname);
             free(fullname);
             return -errno;
         }
@@ -385,9 +389,21 @@ int parse_dir(bool system, const char *dirname) {
 	while ((dent = readdir(dirp))) {
                 if (dent->d_name[0] == '.') // '.', '..', '.placeholder'
                     continue;
-                if (system)
+                if (system) {
+                    struct stat sb;
+                    char *sys_unit;
+                    char *etc_unit;
+                    asprintf(&sys_unit, "%s/%s.timer", UNITDIR, dent->d_name);
+                    asprintf(&etc_unit, "/etc/systemd/system/%s.timer", dent->d_name);
+                    bool native = (stat(sys_unit, &sb) != -1) || (stat(etc_unit, &sb) != -1);
+                    free(sys_unit);
+                    free(etc_unit);
+                    if (native) {
+                        syslog(5, "ignoring because native timer is present: /etc/cron.d/", dent->d_name);
+                        continue;
+                    }
                     parse_crontab(dirname, dent->d_name, NULL);
-                else
+                } else
                     parse_crontab(dirname, dent->d_name, dent->d_name);
 	}
         closedir(dirp);
