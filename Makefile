@@ -1,6 +1,6 @@
 # use 'make prefix=/usr' on UsrMerge'd distros
 prefix ?=
-CFLAGS ?= -g Wall
+CFLAGS ?= -g -Wall
 
 all: systemd-cron-generator
 
