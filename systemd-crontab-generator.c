@@ -38,9 +38,31 @@
 #endif
 
 static const char *arg_dest = "/tmp";
+bool debug = false;
 
 const char *daysofweek[] = {"Sun","Mon","Tue","Wed","Thu","Fri","Sat"};
 const char *isdow = "0123456";
+
+void syslog(int level, char *message, char *message2) {
+    FILE *out;
+
+    out = fopen("/dev/kmsg", "w");
+    if (out == NULL || debug)
+        out = stderr;
+    else
+        fprintf(out, "<%d> ", level);
+
+    fprintf(out, "systemd-crontab-generator[%d]: %s", getpid(), message);
+
+    if (message2 != NULL)
+        fprintf(out, " %s", message2);
+
+    fprintf(out, "\n");
+    fflush(out);
+
+    if (out != stderr)
+        fclose(out);
+}
 
 static int parse_dow(char *dow, char *dows){
         char c[2] = {"\0\0"};
@@ -130,6 +152,7 @@ static int parse_crontab(const char *dirname, const char *filename, char *userta
 
         fp = fopen(fullname, "r");
         if (!fp) {
+            syslog(3, "cannot read", fullname);
             free(fullname);
             return -errno;
         }
@@ -374,6 +397,8 @@ int parse_dir(bool system, const char *dirname) {
 int main(int argc, char *argv[]) {
         if (argc > 1)
                 arg_dest = argv[1];
+        else
+                debug = true;
 
         umask(0022);
         parse_crontab("/etc", "crontab", NULL);
