@@ -296,7 +296,11 @@ static int parse_crontab(const char *dirname, const char *filename, char *userta
                 fputs("[Service]\n", outp);
                 fputs("Type=oneshot\n", outp);
                 fputs("IgnoreSIGPIPE=false\n", outp);
-                fprintf(outp, "ExecStart=/bin/sh -c \"%s\"\n", command);
+                struct stat sb;
+                if (stat(command, &sb) != -1)
+                    fprintf(outp, "ExecStart=%s\n", command);
+                else
+                    fprintf(outp, "ExecStart=/bin/sh -c \"%s\"\n", command);
 
                 if (head) {
                     fputs("Environment=", outp);
