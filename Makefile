@@ -2,13 +2,13 @@
 prefix ?=
 CFLAGS ?= -g -Wall
 
-all: systemd-cron-generator
+all: systemd-crontab-generator
 
-systemd-cron-generator: systemd-cron-generator.c
-	$(CC) $(CFLAGS) $(LDFLAGS) $(CPPFLAGS) systemd-cron-generator.c -l bsd -o systemd-cron-generator
+systemd-crontab-generator: systemd-crontab-generator.c
+	$(CC) $(CFLAGS) $(LDFLAGS) $(CPPFLAGS) systemd-crontab-generator.c -l bsd -o systemd-crontab-generator
 
 install:
-	install -D -m 0755 systemd-cron-generator  $(DESTDIR)$(prefix)/lib/systemd/system-generators/systemd-crontab-generator
+	install -D -m 0755 systemd-crontab-generator  $(DESTDIR)$(prefix)/lib/systemd/system-generators/systemd-crontab-generator
 
 clean:
-	rm -f systemd-cron-generator
+	rm -f systemd-crontab-generator
