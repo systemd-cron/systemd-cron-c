@@ -390,6 +390,10 @@ int parse_dir(bool system, const char *dirname) {
                 if (dent->d_name[0] == '.') // '.', '..', '.placeholder'
                     continue;
                 if (system) {
+                    if (strstr(dent->d_name, ".dpkg-") != NULL) {
+                        syslog(5, "ignoring /etc/cron.d/", dent->d_name);
+                        continue;
+                    }
                     struct stat sb;
                     char *sys_unit;
                     char *etc_unit;
