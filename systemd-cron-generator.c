@@ -274,14 +274,17 @@ static int parse_crontab(const char *dirname, const char *filename, char *userta
                 fputs("Documentation=man:systemd-crontab-generator(8)\n", outp);
                 fputs("RefuseManualStart=true\n", outp);
                 fputs("RefuseManualStop=true\n", outp);
-                fprintf(outp, "SourcePath=%s\n\n", fullname);
+                fprintf(outp, "SourcePath=%s\n", fullname);
+                if (usertab || strcmp(user, "root")) {
+                    fputs("Requires=systemd-user-sessions.service\n", outp);
+                    fprintf(outp, "RequiresMountsFor=/home/%s\n", user);
+                    // XXX: home = pwd.getpwnam(user).pw_dir
+                }
+                fputs("\n", outp);
 
                 fputs("[Service]\n", outp);
                 fputs("Type=oneshot\n", outp);
                 fputs("IgnoreSIGPIPE=false\n", outp);
-                if (strcmp(user, "root")) {
-                    fprintf(outp, "User=%s\n", user);
-                }
                 fprintf(outp, "ExecStart=/bin/sh -c \"%s\"\n", command);
 
                 if (head) {
@@ -297,6 +300,10 @@ static int parse_crontab(const char *dirname, const char *filename, char *userta
                         curr = curr->next;
                     }
                     fputs("\n", outp);
+                }
+
+                if (strcmp(user, "root")) {
+                    fprintf(outp, "User=%s\n", user);
                 }
 
                 fclose(outp);
