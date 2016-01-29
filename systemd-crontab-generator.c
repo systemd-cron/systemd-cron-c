@@ -449,11 +449,16 @@ int main(int argc, char *argv[]) {
         else
                 debug = true;
 
+        struct stat sb;
+        if (stat(arg_dest, &sb) == -1) {
+            fprintf(stderr, "%s doesn't exist.\n", arg_dest);
+            exit(1);
+        }
+
         umask(0022);
         parse_crontab("/etc", "crontab", NULL);
         parse_dir(true, "/etc/cron.d");
 
-        struct stat sb;
         if (stat(USER_CRONTABS, &sb) != -1)
             // /var is available
             parse_dir(false, USER_CRONTABS);
