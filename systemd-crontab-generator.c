@@ -36,10 +36,12 @@
 #ifndef USER_CRONTABS
 #define USER_CRONTABS "/var/spool/cron/crontabs"
 #endif
+// or "/var/spool/cron"
 
-#ifndef UNITDIR
-#define UNITDIR "/lib/systemd/system"
+#ifndef PREFIX
+#define PREFIX ""
 #endif
+// or "/usr"
 
 static const char *arg_dest = "/tmp";
 bool debug = false;
@@ -397,7 +399,7 @@ int parse_dir(bool system, const char *dirname) {
                     struct stat sb;
                     char *sys_unit;
                     char *etc_unit;
-                    asprintf(&sys_unit, "%s/%s.timer", UNITDIR, dent->d_name);
+                    asprintf(&sys_unit, "%s/lib/systemd/system/%s.timer", PREFIX, dent->d_name);
                     asprintf(&etc_unit, "/etc/systemd/system/%s.timer", dent->d_name);
                     bool native = (stat(sys_unit, &sb) != -1) || (stat(etc_unit, &sb) != -1);
                     free(sys_unit);
@@ -423,7 +425,40 @@ int main(int argc, char *argv[]) {
         umask(0022);
         parse_crontab("/etc", "crontab", NULL);
         parse_dir(true, "/etc/cron.d");
-        parse_dir(false, USER_CRONTABS);
+
+        struct stat sb;
+        if (stat(USER_CRONTABS, &sb) != -1)
+            // /var is available
+            parse_dir(false, USER_CRONTABS);
+        else {
+            // schedule rerun
+            char *unit;
+            asprintf(&unit, "%s/cron-after-var.service", arg_dest);
+            FILE *f;
+            f = fopen(unit, "w");
+            fputs("[Unit]\n", f);
+            fputs("Description=Rerun systemd-crontab-generator because /var is a separate mount\n", f);
+            fputs("After=cron.target\n", f);
+            fputs("ConditionDirectoryNotEmpty=@statedir@\n", f);
+
+            fputs("\n[Service]\n", f);
+            fputs("Type=oneshot\n", f);
+            fprintf(f, "ExecStart=/bin/sh -c '%s/systemctl daemon-reload ;"
+                                             "%s/systemctl try-restart cron.target'\n",
+                                              PREFIX,                      PREFIX);
+            fclose(f);
+
+            char *dir;
+            asprintf(&dir, "%s/multi-user.target.wants", arg_dest);
+            mkdir(dir, S_IRUSR | S_IWUSR | S_IXUSR);
+            char *link;
+            asprintf(&link, "%s/multi-user.target.wants/cron-after-var.service", arg_dest);
+            symlink(unit, link);
+
+            free(link);
+            free(unit);
+            free(dir);
+        }
 
         return 0;
 }
