@@ -303,6 +303,10 @@ static int parse_crontab(const char *dirname, const char *filename, char *userta
 
                 asprintf(&outf, "%s/%s.timer", arg_dest, unit);
                 outp = fopen(outf, "w");
+                if(outp == NULL) {
+                    syslog(3, "Couldn't create output, aborting: ", outf);
+                    exit(1);
+                }
                 fputs("[Unit]\n", outp);
                 fprintf(outp, "Description=[Timer] \"%s\"\n", line);
                 fputs("Documentation=man:systemd-crontab-generator(8)\n", outp);
