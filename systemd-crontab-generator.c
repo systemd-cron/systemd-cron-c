@@ -430,7 +430,7 @@ int parse_dir(bool system, const char *dirname) {
                     struct stat sb;
                     char *sys_unit;
                     char *etc_unit;
-                    asprintf(&sys_unit, "%s/lib/systemd/system/%s.timer", PREFIX, dent->d_name);
+                    asprintf(&sys_unit, PREFIX "/lib/systemd/system/%s.timer", dent->d_name);
                     asprintf(&etc_unit, "/etc/systemd/system/%s.timer", dent->d_name);
                     bool native = (stat(sys_unit, &sb) != -1) || (stat(etc_unit, &sb) != -1);
                     free(sys_unit);
@@ -475,13 +475,12 @@ int main(int argc, char *argv[]) {
             fputs("[Unit]\n", f);
             fputs("Description=Rerun systemd-crontab-generator because /var is a separate mount\n", f);
             fputs("After=cron.target\n", f);
-            fputs("ConditionDirectoryNotEmpty=@statedir@\n", f);
+            fputs("ConditionDirectoryNotEmpty=" USER_CRONTABS "\n", f);
 
             fputs("\n[Service]\n", f);
             fputs("Type=oneshot\n", f);
-            fprintf(f, "ExecStart=/bin/sh -c '%s/systemctl daemon-reload ;"
-                                             "%s/systemctl try-restart cron.target'\n",
-                                              PREFIX,                      PREFIX);
+            fputs("ExecStart=/bin/sh -c '" PREFIX "/bin/systemctl daemon-reload ; "
+                                           PREFIX "/bin/systemctl try-restart cron.target'\n", f);
             fclose(f);
 
             char *dir;
