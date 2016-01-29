@@ -150,6 +150,7 @@ static int parse_crontab(const char *dirname, const char *filename, char *userta
         env *curr = NULL;
 
         /* out */
+        char *timers_dir = NULL;
         sequence *seq_head = NULL;
         sequence *seq_curr = NULL;
         FILE *outp = NULL;
@@ -162,6 +163,8 @@ static int parse_crontab(const char *dirname, const char *filename, char *userta
             free(fullname);
             return -errno;
         }
+
+        asprintf(&timers_dir, "%s/cron.target.wants", arg_dest);
 
         while (fgets(line, sizeof(line), fp)) {
                 p = strchr(line, '\n');
@@ -306,6 +309,12 @@ static int parse_crontab(const char *dirname, const char *filename, char *userta
                     fputs("Persistent=true\n", outp);
                 fclose(outp);
 
+                mkdir(timers_dir, S_IRUSR | S_IWUSR | S_IXUSR);
+                char *link;
+                asprintf(&link, "%s/%s.timer", timers_dir, unit);
+                symlink(outf, link);
+                free(link);
+
                 free(outf);
                 asprintf(&outf, "%s/%s.service", arg_dest, unit);
                 outp = fopen(outf, "w");
@@ -357,6 +366,7 @@ static int parse_crontab(const char *dirname, const char *filename, char *userta
                 free(outf);
         }
         free(fullname);
+        free(timers_dir);
         fclose(fp);
 
         curr = head;
