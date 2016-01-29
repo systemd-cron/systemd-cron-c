@@ -347,7 +347,7 @@ static int parse_crontab(const char *dirname, const char *filename, char *userta
                         if (strlen(curr->val) == 0)
                             {}
                         else if (strchr(curr->val, ' '))
-                            fprintf(outp, "%s=\"%s\" ", curr->key, curr->val);
+                            fprintf(outp, "\"%s=%s\" ", curr->key, curr->val);
                         else
                             fprintf(outp, "%s=%s ", curr->key, curr->val);
                         curr = curr->next;
