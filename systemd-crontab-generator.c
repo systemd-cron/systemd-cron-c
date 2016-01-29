@@ -125,6 +125,15 @@ void compress_blanks(char *string) {
     string[count] = '\0';
 }
 
+
+bool str_to_bool(char *string) {
+    for (int i=0; string[i]; i++)
+        string[i] = tolower((unsigned char)string[i]);
+    return !strcmp(string,"true") ||
+           !strcmp(string,"yes") ||
+           !strcmp(string,"1");
+}
+
 static int parse_crontab(const char *dirname, const char *filename, char *usertab) {
         char *fullname;
         asprintf(&fullname, "%s/%s", dirname, filename);
@@ -138,6 +147,7 @@ static int parse_crontab(const char *dirname, const char *filename, char *userta
         char dows[128];
         char *schedule;
         bool persistent = false;
+        bool batch = false;
 
         int remainder = 0;
         int remainder2 = 0;
@@ -220,11 +230,12 @@ static int parse_crontab(const char *dirname, const char *filename, char *userta
                           }
 
                           if(strcmp("PERSISTENT", line) == 0) {
-                              for (int i=0; value[i]; i++)
-                                   value[i] = tolower((unsigned char)value[i]);
-                              persistent = (!strcmp(value,"true") ||
-                                            !strcmp(value,"yes") ||
-                                            !strcmp(value,"1"));
+                              persistent = str_to_bool(value);
+                              continue;
+                          }
+
+                          if(strcmp("BATCH", line) == 0) {
+                              batch = str_to_bool(value);
                               continue;
                           }
 
@@ -378,6 +389,10 @@ static int parse_crontab(const char *dirname, const char *filename, char *userta
 
                 if (strcmp(user, "root")) {
                     fprintf(outp, "User=%s\n", user);
+                }
+                if (batch) {
+                    fputs("CPUSchedulingPolicy=idle\n", outp);
+                    fputs("IOSchedulingClass=idle\n", outp);
                 }
 
                 fclose(outp);
