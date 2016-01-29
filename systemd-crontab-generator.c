@@ -451,13 +451,13 @@ int main(int argc, char *argv[]) {
             char *dir;
             asprintf(&dir, "%s/multi-user.target.wants", arg_dest);
             mkdir(dir, S_IRUSR | S_IWUSR | S_IXUSR);
+            free(dir);
+
             char *link;
             asprintf(&link, "%s/multi-user.target.wants/cron-after-var.service", arg_dest);
             symlink(unit, link);
-
             free(link);
             free(unit);
-            free(dir);
         }
 
         return 0;
