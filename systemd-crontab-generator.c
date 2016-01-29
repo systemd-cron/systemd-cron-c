@@ -131,6 +131,7 @@ static int parse_crontab(const char *dirname, const char *filename, char *userta
 
         FILE *fp = NULL;
         char line[1024];
+        char shell[20] = "/bin/sh";
         char *p;
 
         char frequency[11], m[25], h[25], dom[25], mon[25], dow[25], user[65];
@@ -225,6 +226,14 @@ static int parse_crontab(const char *dirname, const char *filename, char *userta
                                             !strcmp(value,"yes") ||
                                             !strcmp(value,"1"));
                               continue;
+                          }
+
+                          if(strcmp("SHELL", line) == 0) {
+                              if(strlen(value) > (sizeof(shell)-1)) {
+                                  syslog(3, "bad SHELL, ingnoring: ", value);
+                                  continue;
+                              }
+                              strncpy(shell, value, sizeof(shell)-1);
                           }
 
                           curr = head;
@@ -337,8 +346,16 @@ static int parse_crontab(const char *dirname, const char *filename, char *userta
                 struct stat sb;
                 if (stat(command, &sb) != -1)
                     fprintf(outp, "ExecStart=%s\n", command);
-                else
-                    fprintf(outp, "ExecStart=/bin/sh -c \"%s\"\n", command);
+                else {
+                    char* script;
+                    asprintf(&script, "%s/%s.sh", arg_dest, unit);
+                    fprintf(outp, "ExecStart=%s %s\n", shell, script);
+                    FILE *sh;
+                    sh = fopen(script, "w");
+                    fprintf(sh, "%s\n", command);
+                    fclose(sh);
+                    free(script);
+                }
 
                 if (head) {
                     fputs("Environment=", outp);
