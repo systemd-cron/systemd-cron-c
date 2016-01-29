@@ -43,6 +43,10 @@
 #endif
 // or "/usr"
 
+// do not re-run @reboot jobs
+// when switching from/to Vixie-Cron
+#define REBOOT_FILE "/run/crond.reboot"
+
 static const char *arg_dest = "/tmp";
 bool debug = false;
 
@@ -148,6 +152,7 @@ static int parse_crontab(const char *dirname, const char *filename, char *userta
         char *schedule;
         bool persistent = false;
         bool batch = false;
+        bool reboot = false;
 
         int remainder = 0;
         int remainder2 = 0;
@@ -181,6 +186,8 @@ static int parse_crontab(const char *dirname, const char *filename, char *userta
                 p = strchr(line, '\n');
                 p[0] = '\0';
                 compress_blanks(line);
+                schedule = NULL;
+                reboot = false;
                 switch(line[0]) {
                     case '\0':
                       continue;
@@ -188,24 +195,31 @@ static int parse_crontab(const char *dirname, const char *filename, char *userta
                       continue;
                     case '@':
                       sscanf(line, "%10s %n", frequency, &remainder);
-                      strcpy(m, "*");
-                      strcpy(h, "*");
-                      strcpy(dom, "*");
-                      strcpy(mon, "*");
-                      strcpy(dow, "*");
-                      switch(frequency[1]) {
-                          case 'y': // yearly
-                          case 'a': // annually
-                            mon[0] = '1';
-                          case 'm': // monthly
-                            dom[0] = '1';
-                          case 'w': // weekly
-                            if (frequency[1] == 'w')
-                                dow[0] = '1';
-                          case 'd': // daily
-                            h[0] = '0';
-                          case 'h': // hourly
-                            m[0] = '0';
+                      if(!strcmp(frequency,"@hourly") ||
+                         !strcmp(frequency,"@daily") ||
+                         !strcmp(frequency,"@weekly") ||
+                         !strcmp(frequency,"@monthly") ||
+                         !strcmp(frequency,"@semi-annually") ||
+                         !strcmp(frequency,"@yearly")) {
+                             schedule = strdup(&frequency[1]);
+                      } else if (!strcmp(frequency,"@midnight")) {
+                             schedule = strdup("daily");
+                      } else if (!strcmp(frequency, "@biannually") ||
+                                 !strcmp(frequency, "@bi-annually") ||
+                                 !strcmp(frequency, "@semiannually")) {
+                             schedule = strdup("semi-annually");
+                      } else if (!strcmp(frequency,"@anually") ||
+                                 !strcmp(frequency,"@annually")) {
+                             schedule = strdup("yearly");
+                      } else if (!strcmp(frequency,"@reboot")) {
+                             struct stat sb;
+                             if (stat(REBOOT_FILE, &sb) != -1)
+                                 continue;
+                             schedule = strdup(&frequency[1]);
+                             reboot = true;
+                      } else {
+                             syslog(3, "garbled time: ", line);
+                             continue;
                       }
                       break;
                     default:
@@ -277,8 +291,11 @@ static int parse_crontab(const char *dirname, const char *filename, char *userta
                     strcpy(user, usertab);
                 command = &line[remainder+remainder2];
 
-                parse_dow(dow, &dows[0]);
-                asprintf(&schedule, "%s*-%s-%s %s:%s:00", dows, mon, dom, h, m);
+                if (schedule == NULL) {
+                    parse_dow(dow, &dows[0]);
+                    asprintf(&schedule, "%s*-%s-%s %s:%s:00", dows, mon, dom, h, m);
+                }
+
                 if (persistent) {
                     unsigned char digest[16];
                     MD5_CTX context;
@@ -328,7 +345,10 @@ static int parse_crontab(const char *dirname, const char *filename, char *userta
 
                 fputs("[Timer]\n", outp);
                 fprintf(outp, "Unit=%s.service\n", unit);
-                fprintf(outp, "OnCalendar=%s\n", schedule);
+                if(reboot)
+                    fputs("OnBootSec=1m\n", outp);
+                else
+                    fprintf(outp, "OnCalendar=%s\n", schedule);
                 if (persistent)
                     fputs("Persistent=true\n", outp);
                 fclose(outp);
@@ -478,10 +498,11 @@ int main(int argc, char *argv[]) {
         parse_crontab("/etc", "crontab", NULL);
         parse_dir(true, "/etc/cron.d");
 
-        if (stat(USER_CRONTABS, &sb) != -1)
+        if (stat(USER_CRONTABS, &sb) != -1) {
             // /var is available
             parse_dir(false, USER_CRONTABS);
-        else {
+            close(open(REBOOT_FILE, O_CREAT));
+        } else {
             // schedule rerun
             char *unit;
             asprintf(&unit, "%s/cron-after-var.service", arg_dest);
