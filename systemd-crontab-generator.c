@@ -229,19 +229,21 @@ static int parse_crontab(const char *dirname, const char *filename, char *userta
                     case '@':
                       sscanf(line, "%10s %n", frequency, &skipped);
                       command = line + skipped;
-                      if(!strcmp(frequency,"@hourly") ||
+                      if(!strcmp(frequency,"@minutely") ||
+                         !strcmp(frequency,"@hourly") ||
                          !strcmp(frequency,"@daily") ||
                          !strcmp(frequency,"@weekly") ||
                          !strcmp(frequency,"@monthly") ||
-                         !strcmp(frequency,"@semi-annually") ||
+                         !strcmp(frequency,"@quarterly") ||
+                         !strcmp(frequency,"@semiannually") ||
                          !strcmp(frequency,"@yearly")) {
                              schedule = strdup(&frequency[1]);
                       } else if (!strcmp(frequency,"@midnight")) {
                              schedule = strdup("daily");
                       } else if (!strcmp(frequency, "@biannually") ||
                                  !strcmp(frequency, "@bi-annually") ||
-                                 !strcmp(frequency, "@semiannually")) {
-                             schedule = strdup("semi-annually");
+                                 !strcmp(frequency, "@semi-annually")) {
+                             schedule = strdup("semiannually");
                       } else if (!strcmp(frequency,"@anually") ||
                                  !strcmp(frequency,"@annually")) {
                              schedule = strdup("yearly");
@@ -280,6 +282,14 @@ static int parse_crontab(const char *dirname, const char *filename, char *userta
                                   value[i] = '\0';
                               else
                                   break;
+                          }
+
+                          if(strcmp("DELAY", line) == 0) {
+                              if(!sscanf(value, "%d", &delay)) {
+                                  log_msg(4, "cannot read DELAY: ", value);
+                                  delay = 0;
+                              }
+                              continue;
                           }
 
                           if(strcmp("PERSISTENT", line) == 0) {
@@ -340,6 +350,26 @@ static int parse_crontab(const char *dirname, const char *filename, char *userta
                 if (schedule == NULL) {
                     parse_dow(dow, &dows[0]);
                     asprintf(&schedule, "%s*-%s-%s %s:%s:00", dows, mon, dom, h, m);
+                } else if (delay) {
+                    char *delayed_schedule = NULL;
+                    if (!strcmp(schedule, "hourly"))
+                        asprintf(&delayed_schedule, "*-*-* *:%d:00", delay);
+                    else if (!strcmp(schedule, "daily"))
+                        asprintf(&delayed_schedule, "*-*-* 0:%d:00", delay);
+                    else if (!strcmp(schedule, "weekly"))
+                        asprintf(&delayed_schedule, "Mon *-*-* 0:%d:00", delay);
+                    else if (!strcmp(schedule, "monthly"))
+                        asprintf(&delayed_schedule, "*-*-1 0:%d:00", delay);
+                    else if (!strcmp(schedule, "quarterly"))
+                        asprintf(&delayed_schedule, "*-1,4,7,10-1 0:%d:00", delay);
+                    else if (!strcmp(schedule, "semiannually"))
+                        asprintf(&delayed_schedule, "*-1,7-1 0:%d:00", delay);
+                    else if (!strcmp(schedule, "yearly"))
+                        asprintf(&delayed_schedule, "*-1-1 0:%d:00", delay);
+                    if(delayed_schedule) {
+                        free(schedule);
+                        schedule = delayed_schedule;
+                    }
                 }
 
                 if (persistent) {
@@ -425,6 +455,8 @@ static int parse_crontab(const char *dirname, const char *filename, char *userta
                 fputs("[Service]\n", outp);
                 fputs("Type=oneshot\n", outp);
                 fputs("IgnoreSIGPIPE=false\n", outp);
+                if (!reboot && delay)
+                    fprintf(outp, "ExecStartPre=" PREFIX "/lib/systemd-cron/boot_delay %d\n", delay);
                 struct stat sb;
                 if (stat(command, &sb) != -1)
                     fprintf(outp, "ExecStart=%s\n", command);
