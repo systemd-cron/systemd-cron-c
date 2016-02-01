@@ -53,7 +53,7 @@ bool debug = false;
 const char *daysofweek[] = {"Sun","Mon","Tue","Wed","Thu","Fri","Sat"};
 const char *isdow = "0123456";
 
-void syslog(int level, char *message, char *message2) {
+void log_msg(int level, char *message, char *message2) {
     FILE *out;
 
     out = fopen("/dev/kmsg", "w");
@@ -206,7 +206,7 @@ static int parse_crontab(const char *dirname, const char *filename, char *userta
 
         fp = fopen(fullname, "r");
         if (!fp) {
-            syslog(3, "cannot read ", fullname);
+            log_msg(3, "cannot read ", fullname);
             free(fullname);
             return -errno;
         }
@@ -250,7 +250,7 @@ static int parse_crontab(const char *dirname, const char *filename, char *userta
                              schedule = strdup(&frequency[1]);
                              reboot = true;
                       } else {
-                             syslog(3, "garbled time: ", line);
+                             log_msg(3, "garbled time: ", line);
                              continue;
                       }
                       if(anacrontab) {
@@ -292,7 +292,7 @@ static int parse_crontab(const char *dirname, const char *filename, char *userta
 
                           if(strcmp("SHELL", line) == 0) {
                               if(strlen(value) > (sizeof(shell)-1)) {
-                                  syslog(3, "bad SHELL, ingnoring: ", value);
+                                  log_msg(3, "bad SHELL, ingnoring: ", value);
                                   continue;
                               }
                               strncpy(shell, value, sizeof(shell)-1);
@@ -321,7 +321,7 @@ static int parse_crontab(const char *dirname, const char *filename, char *userta
                                 schedule = strdup("monthly");
                                 break;
                               default:
-                                syslog(3, "unsupported anacrontab", line);
+                                log_msg(3, "unsupported anacrontab", line);
                                 continue;
                           }
                       } else {
@@ -376,7 +376,7 @@ static int parse_crontab(const char *dirname, const char *filename, char *userta
                 asprintf(&outf, "%s/%s.timer", arg_dest, unit);
                 outp = fopen(outf, "w");
                 if(outp == NULL) {
-                    syslog(3, "Couldn't create output, aborting: ", outf);
+                    log_msg(3, "Couldn't create output, aborting: ", outf);
                     exit(1);
                 }
                 fputs("[Unit]\n", outp);
@@ -503,7 +503,7 @@ int parse_dir(bool system, const char *dirname) {
                     continue;
                 if (system) {
                     if (strstr(dent->d_name, ".dpkg-") != NULL) {
-                        syslog(5, "ignoring /etc/cron.d/", dent->d_name);
+                        log_msg(5, "ignoring /etc/cron.d/", dent->d_name);
                         continue;
                     }
                     struct stat sb;
@@ -515,7 +515,7 @@ int parse_dir(bool system, const char *dirname) {
                     free(sys_unit);
                     free(etc_unit);
                     if (native) {
-                        syslog(5, "ignoring because native timer is present: /etc/cron.d/", dent->d_name);
+                        log_msg(5, "ignoring because native timer is present: /etc/cron.d/", dent->d_name);
                         continue;
                     }
                     parse_crontab(dirname, dent->d_name, NULL, false);
