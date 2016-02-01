@@ -147,6 +147,10 @@ struct int_dict
 typedef struct int_dict sequence;
 
 void compress_blanks(char *string) {
+    for (int i = 0; string[i]; i++)
+        if (string[i] == '\t')
+            string[i] = ' ';
+
     int count = 0;
 
     for (int i = 0; string[i]; i++)
