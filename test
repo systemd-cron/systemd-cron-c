@@ -1,0 +1,9 @@
+#!/bin/bash
+rm -rf /tmp/p
+mkdir /tmp/p
+/lib/systemd/system-generators/systemd-crontab-generator /tmp/p
+
+rm -rf /tmp/c
+mkdir /tmp/c
+./systemd-crontab-generator /tmp/c
+colordiff -u /tmp/p /tmp/c
