@@ -57,11 +57,12 @@ const char *isdow = "0123456";
 void log_msg(int level, char *message, char *message2) {
     FILE *out;
 
-    out = fopen("/dev/kmsg", "w");
-    if (out == NULL || debug)
+    if (debug)
         out = stderr;
-    else
+    else if ((out = fopen("/dev/kmsg", "w")))
         fprintf(out, "<%d> ", level);
+    else
+        out = stderr;
 
     fprintf(out, "systemd-crontab-generator[%d]: %s", getpid(), message);
 
