@@ -349,6 +349,22 @@ static int parse_crontab(const char *dirname, const char *filename, char *userta
 
                 if (schedule == NULL) {
                     parse_dow(dow, &dows[0]);
+                    void expand_range(char* var) {
+                        if(!strchr(var, '-'))
+                            return;
+                        char tmp[25];
+                        strncpy(tmp, var, 24);
+                        int start, end;
+                        sscanf(strtok(tmp, "-"), "%d", &start);
+                        sscanf(strtok(NULL, "-"), "%d", &end);
+                        sprintf(var, "%d", start);
+                        for(int i=start+1; i <= end; i++)
+                             sprintf(var + strlen(var),",%d", i);
+                    }
+                    expand_range(mon);
+                    expand_range(dom);
+                    expand_range(h);
+                    expand_range(m);
                     asprintf(&schedule, "%s*-%s-%s %s:%s:00", dows, mon, dom, h, m);
                 } else if (delay) {
                     char *delayed_schedule = NULL;
