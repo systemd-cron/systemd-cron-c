@@ -138,7 +138,7 @@ bool str_to_bool(char *string) {
            !strcmp(string,"1");
 }
 
-static int parse_crontab(const char *dirname, const char *filename, char *usertab) {
+static int parse_crontab(const char *dirname, const char *filename, char *usertab, bool anacrontab) {
         char *fullname;
         asprintf(&fullname, "%s/%s", dirname, filename);
 
@@ -153,10 +153,10 @@ static int parse_crontab(const char *dirname, const char *filename, char *userta
         bool persistent = false;
         bool batch = false;
         bool reboot = false;
+        int delay = 0;
 
-        int remainder = 0;
-        int remainder2 = 0;
         char *command;
+        int skipped = 0;
 
         /* fake regexp */
         char *pos_equal;
@@ -194,7 +194,8 @@ static int parse_crontab(const char *dirname, const char *filename, char *userta
                     case '#':
                       continue;
                     case '@':
-                      sscanf(line, "%10s %n", frequency, &remainder);
+                      sscanf(line, "%10s %n", frequency, &skipped);
+                      command = line + skipped;
                       if(!strcmp(frequency,"@hourly") ||
                          !strcmp(frequency,"@daily") ||
                          !strcmp(frequency,"@weekly") ||
@@ -220,6 +221,11 @@ static int parse_crontab(const char *dirname, const char *filename, char *userta
                       } else {
                              syslog(3, "garbled time: ", line);
                              continue;
+                      }
+                      if(anacrontab) {
+                             char jobid[25]; // ignored
+                             sscanf(command, "%4d %24s %n", &delay, jobid, &skipped);
+                             command += skipped;
                       }
                       break;
                     default:
@@ -283,13 +289,38 @@ static int parse_crontab(const char *dirname, const char *filename, char *userta
                           }
                           continue;
                       }
-                      sscanf(line, "%24s %24s %24s %24s %24s %n", m, h, dom, mon, dow, &remainder);
+                      if(anacrontab) {
+                          int days;
+                          char jobid[25]; // ignored
+                          sscanf(line, "%4d %4d %24s %n", &days, &delay, jobid, &skipped);
+                          command = line + skipped;
+                          switch(days) {
+                              case(1):
+                                schedule = strdup("daily");
+                                break;
+                              case(7):
+                                schedule = strdup("weekly");
+                                break;
+                              case(30):
+                                schedule = strdup("monthly");
+                                break;
+                              case(31):
+                                schedule = strdup("monthly");
+                                break;
+                              default:
+                                syslog(3, "unsupported anacrontab", line);
+                                continue;
+                          }
+                      } else {
+                          sscanf(line, "%24s %24s %24s %24s %24s %n", m, h, dom, mon, dow, &skipped);
+                          command = line + skipped;
+                      }
                 }
-                if (usertab == NULL)
-                    sscanf(&line[remainder], "%64s %n", user, &remainder2);
-		else
+                if (usertab == NULL) {
+                    sscanf(command, "%64s %n", user, &skipped);
+                    command += skipped;
+                } else
                     strcpy(user, usertab);
-                command = &line[remainder+remainder2];
 
                 if (schedule == NULL) {
                     parse_dow(dow, &dows[0]);
@@ -474,9 +505,9 @@ int parse_dir(bool system, const char *dirname) {
                         syslog(5, "ignoring because native timer is present: /etc/cron.d/", dent->d_name);
                         continue;
                     }
-                    parse_crontab(dirname, dent->d_name, NULL);
+                    parse_crontab(dirname, dent->d_name, NULL, false);
                 } else
-                    parse_crontab(dirname, dent->d_name, dent->d_name);
+                    parse_crontab(dirname, dent->d_name, dent->d_name, false);
 	}
         closedir(dirp);
         return 0;
@@ -495,7 +526,8 @@ int main(int argc, char *argv[]) {
         }
 
         umask(0022);
-        parse_crontab("/etc", "crontab", NULL);
+        parse_crontab("/etc", "crontab", NULL, false);
+        parse_crontab("/etc", "anacrontab", "root", true);
         parse_dir(true, "/etc/cron.d");
 
         if (stat(USER_CRONTABS, &sb) != -1) {
