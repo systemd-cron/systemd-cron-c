@@ -1,22 +1,22 @@
-/*-*- Mode: C; c-basic-offset: 8; indent-tabs-mode: nil -*-*/
-
 /***
-  This file is part of systemd.
+  Copyright 2013 Shawn Landden:
+                 - original implementation in C posted on
+                   systemd mailing list
+                 - parse_dow() re-used here almost as-is
+            2014 Konstantin Stepanov,
+                 Dwayne Bent,
+                 Daniel Schaal,
+                 Alexandre Detiste
+                 - polished Python version packaged for
+                   Arch, Debian, Gentoo...
 
-  Copyright 2013 Shawn Landden
+                 The project is licensed under MIT.
 
-  systemd is free software; you can redistribute it and/or modify it
-  under the terms of the GNU Lesser General Public License as published by
-  the Free Software Foundation; either version 2.1 of the License, or
-  (at your option) any later version.
-
-  systemd is distributed in the hope that it will be useful, but
-  WITHOUT ANY WARRANTY; without even the implied warranty of
-  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-  Lesser General Public License for more details.
-
-  You should have received a copy of the GNU Lesser General Public License
-  along with systemd; If not, see <http://www.gnu.org/licenses/>.
+            2015 Alexandre Detiste - maintenance
+            2015 Konstantin Stepanov - rewrite in Rust
+            2016 Alexandre Detiste - _this_ C rewrite
+                 that re-implements the logic in the Python version
+                 with some extra ideas from the Rust version
 ***/
 
 #define _GNU_SOURCE
