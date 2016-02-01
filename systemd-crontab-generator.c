@@ -111,6 +111,33 @@ struct text_dict
 };
 typedef struct text_dict env;
 
+struct text_dict* text_dict_set(struct text_dict *head, char *key, char *value) {
+    struct text_dict *curr = NULL;
+    bool found = false;
+
+    curr = head;
+    while(curr) {
+        if (strcmp(curr->key, key) == 0) {
+            curr->val = (char *)realloc(curr->val, strlen(value)+1);
+            strcpy(curr->val, value);
+            found = true;
+            break;
+        }
+        curr = curr->next;
+    }
+
+    if (!found) {
+        curr = (env *)malloc(sizeof(env));
+        curr->key = (char *)malloc(strlen(key)+1);
+        strcpy(curr->key, key);
+        curr->val = (char *)malloc(strlen(value)+1);
+        strcpy(curr->val, value);
+        curr->next = head;
+        head = curr;
+    }
+    return head;
+}
+
 struct int_dict
 {
     char *key;
@@ -267,26 +294,8 @@ static int parse_crontab(const char *dirname, const char *filename, char *userta
                               strncpy(shell, value, sizeof(shell)-1);
                           }
 
-                          curr = head;
-                          bool found = false;
-                          while(curr) {
-                              if (strcmp(curr->key, line) == 0) {
-                                  curr->val = (char *)realloc(curr->val, strlen(value)+1);
-                                  strcpy(curr->val, value);
-                                  found = true;
-                                  break;
-                              }
-                              curr = curr->next;
-                          }
-                          if (!found) {
-                              curr = (env *)malloc(sizeof(env));
-                              curr->key = (char *)malloc(strlen(line)+1);
-                              strcpy(curr->key, line);
-                              curr->val = (char *)malloc(strlen(value)+1);
-                              strcpy(curr->val, value);
-                              curr->next = head;
-                              head = curr;
-                          }
+                          head = text_dict_set(head, line, value);
+
                           continue;
                       }
                       if(anacrontab) {
