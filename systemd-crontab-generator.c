@@ -183,10 +183,11 @@ static int parse_crontab(const char *dirname, const char *filename, char *userta
         char frequency[11], m[25], h[25], dom[25], mon[25], dow[25], user[65];
         char dows[128];
         char *schedule;
-        bool persistent = false;
+        bool persistent = anacrontab;
         bool batch = false;
         bool reboot = false;
         int delay = 0;
+        char jobid[25];
 
         char *command;
         int skipped = 0;
@@ -258,7 +259,6 @@ static int parse_crontab(const char *dirname, const char *filename, char *userta
                              continue;
                       }
                       if(anacrontab) {
-                             char jobid[25]; // ignored
                              sscanf(command, "%4d %24s %n", &delay, jobid, &skipped);
                              command += skipped;
                       }
@@ -316,7 +316,6 @@ static int parse_crontab(const char *dirname, const char *filename, char *userta
                       }
                       if(anacrontab) {
                           int days;
-                          char jobid[25]; // ignored
                           sscanf(line, "%4d %4d %24s %n", &days, &delay, jobid, &skipped);
                           command = line + skipped;
                           switch(days) {
@@ -369,19 +368,19 @@ static int parse_crontab(const char *dirname, const char *filename, char *userta
                 } else if (delay) {
                     char *delayed_schedule = NULL;
                     if (!strcmp(schedule, "hourly"))
-                        asprintf(&delayed_schedule, "*-*-* *:%d:00", delay);
+                        asprintf(&delayed_schedule, "*-*-* *:%d:0", delay);
                     else if (!strcmp(schedule, "daily"))
-                        asprintf(&delayed_schedule, "*-*-* 0:%d:00", delay);
+                        asprintf(&delayed_schedule, "*-*-* 0:%d:0", delay);
                     else if (!strcmp(schedule, "weekly"))
-                        asprintf(&delayed_schedule, "Mon *-*-* 0:%d:00", delay);
+                        asprintf(&delayed_schedule, "Mon *-*-* 0:%d:0", delay);
                     else if (!strcmp(schedule, "monthly"))
-                        asprintf(&delayed_schedule, "*-*-1 0:%d:00", delay);
+                        asprintf(&delayed_schedule, "*-*-1 0:%d:0", delay);
                     else if (!strcmp(schedule, "quarterly"))
-                        asprintf(&delayed_schedule, "*-1,4,7,10-1 0:%d:00", delay);
+                        asprintf(&delayed_schedule, "*-1,4,7,10-1 0:%d:0", delay);
                     else if (!strcmp(schedule, "semiannually"))
-                        asprintf(&delayed_schedule, "*-1,7-1 0:%d:00", delay);
+                        asprintf(&delayed_schedule, "*-1,7-1 0:%d:0", delay);
                     else if (!strcmp(schedule, "yearly"))
-                        asprintf(&delayed_schedule, "*-1-1 0:%d:00", delay);
+                        asprintf(&delayed_schedule, "*-1-1 0:%d:0", delay);
                     if(delayed_schedule) {
                         free(schedule);
                         schedule = delayed_schedule;
@@ -398,7 +397,17 @@ static int parse_crontab(const char *dirname, const char *filename, char *userta
                     char md5[33];
                     for(int i = 0; i < 16; ++i)
                         sprintf(&md5[i*2], "%02x", (unsigned int)digest[i]);
-                    asprintf(&unit, "cron-%s-%s-%s", filename, user, md5);
+                    if (anacrontab) {
+                        int count = 0;
+                        for (int i = 0; jobid[i]; i++)
+                            if (('a' <= jobid[i] && jobid[i] <= 'z') ||
+                                ('A' <= jobid[i] && jobid[i] <= 'Z') ||
+                                ('0' <= jobid[i] && jobid[i] <= '9'))
+                                jobid[count++] = jobid[i];
+                        jobid[count] = '\0';
+                        asprintf(&unit, "cron-%s-%s-%s", jobid, user, md5);
+                    } else
+                        asprintf(&unit, "cron-%s-%s-%s", filename, user, md5);
                 } else {
                     seq_curr = seq_head;
                     bool found = false;
@@ -472,7 +481,7 @@ static int parse_crontab(const char *dirname, const char *filename, char *userta
                 fputs("Type=oneshot\n", outp);
                 fputs("IgnoreSIGPIPE=false\n", outp);
                 if (!reboot && delay)
-                    fprintf(outp, "ExecStartPre=" PREFIX "/lib/systemd-cron/boot_delay %d\n", delay);
+                    fprintf(outp, "ExecStartPre=-" PREFIX "/lib/systemd-cron/boot_delay %d\n", delay);
                 struct stat sb;
                 if (stat(command, &sb) != -1)
                     fprintf(outp, "ExecStart=%s\n", command);
