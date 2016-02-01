@@ -31,6 +31,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <ctype.h>
+#include <pwd.h>
 #include <bsd/md5.h>
 
 #ifndef USER_CRONTABS
@@ -412,10 +413,11 @@ static int parse_crontab(const char *dirname, const char *filename, char *userta
                 fputs("RefuseManualStart=true\n", outp);
                 fputs("RefuseManualStop=true\n", outp);
                 fprintf(outp, "SourcePath=%s\n", fullname);
-                if (usertab || strcmp(user, "root")) {
+                if ((usertab && !anacrontab) || strcmp(user, "root")) {
                     fputs("Requires=systemd-user-sessions.service\n", outp);
-                    fprintf(outp, "RequiresMountsFor=/home/%s\n", user);
-                    // XXX: home = pwd.getpwnam(user).pw_dir
+                    struct passwd *pwd;
+                    pwd = getpwnam(user);
+                    fprintf(outp, "RequiresMountsFor=%s\n", pwd->pw_dir);
                 }
                 fputs("\n", outp);
 
