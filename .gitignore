@@ -1,3 +1,4 @@
 systemd-crontab-generator
 boot_delay
+mail_on_failure
 remove_stale_stamps
