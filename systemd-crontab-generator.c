@@ -39,11 +39,6 @@
 #endif
 // or "/var/spool/cron"
 
-#ifndef PREFIX
-#define PREFIX ""
-#endif
-// or "/usr"
-
 // do not re-run @reboot jobs
 // when switching from/to Vixie-Cron
 #define REBOOT_FILE "/run/crond.reboot"
@@ -481,7 +476,7 @@ static int parse_crontab(const char *dirname, const char *filename, char *userta
                 fputs("Type=oneshot\n", outp);
                 fputs("IgnoreSIGPIPE=false\n", outp);
                 if (!reboot && delay)
-                    fprintf(outp, "ExecStartPre=-" PREFIX "/lib/systemd-cron/boot_delay %d\n", delay);
+                    fprintf(outp, "ExecStartPre=-/usr/lib/systemd-cron/boot_delay %d\n", delay);
                 struct stat sb;
                 if (stat(command, &sb) != -1)
                     fprintf(outp, "ExecStart=%s\n", command);
@@ -569,7 +564,7 @@ int parse_dir(bool system, const char *dirname) {
                     struct stat sb;
                     char *sys_unit;
                     char *etc_unit;
-                    asprintf(&sys_unit, PREFIX "/lib/systemd/system/%s.timer", dent->d_name);
+                    asprintf(&sys_unit, "/usr/lib/systemd/system/%s.timer", dent->d_name);
                     asprintf(&etc_unit, "/etc/systemd/system/%s.timer", dent->d_name);
                     bool native = (stat(sys_unit, &sb) != -1) || (stat(etc_unit, &sb) != -1);
                     free(sys_unit);
@@ -620,8 +615,8 @@ int main(int argc, char *argv[]) {
 
             fputs("\n[Service]\n", f);
             fputs("Type=oneshot\n", f);
-            fputs("ExecStart=/bin/sh -c '" PREFIX "/bin/systemctl daemon-reload ; "
-                                           PREFIX "/bin/systemctl try-restart cron.target'\n", f);
+            fputs("ExecStart=/bin/sh -c '/usr/bin/systemctl daemon-reload ; "
+                                        "/usr/bin/systemctl try-restart cron.target'\n", f);
             fclose(f);
 
             char *dir;
