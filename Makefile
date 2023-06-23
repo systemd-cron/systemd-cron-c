@@ -8,7 +8,7 @@ all: systemd-crontab-generator boot_delay mail_on_failure remove_stale_stamps
 	$(CC) $(CFLAGS) $(LDFLAGS) $(CPPFLAGS) $< -o $@
 
 systemd-crontab-generator: systemd-crontab-generator.c
-	$(CC) $(CFLAGS) $(LDFLAGS) $(CPPFLAGS) systemd-crontab-generator.c -l bsd -o systemd-crontab-generator
+	$(CC) $(CFLAGS) $(LDFLAGS) $(CPPFLAGS) systemd-crontab-generator.c -l md -o systemd-crontab-generator
 
 install:
 	install -D -m 0755 systemd-crontab-generator  $(DESTDIR)$(prefix)/lib/systemd/system-generators/systemd-crontab-generator

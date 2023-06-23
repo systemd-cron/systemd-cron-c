@@ -32,7 +32,7 @@
 #include <stdlib.h>
 #include <ctype.h>
 #include <pwd.h>
-#include <bsd/md5.h>
+#include <md5.h>
 
 #ifndef USER_CRONTABS
 #define USER_CRONTABS "/var/spool/cron/crontabs"
