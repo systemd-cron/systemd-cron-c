@@ -5,11 +5,6 @@
 #include <unistd.h>
 #include <stdio.h>
 
-#ifndef PREFIX
-#define PREFIX ""
-#endif
-// or "/usr"
-
 int main(int argc, char *argv[]) {
         DIR *dirp;
         struct dirent *dent;
@@ -29,7 +24,7 @@ int main(int argc, char *argv[]) {
                         continue;
 		strncpy(basename, &dent->d_name[strlen("stamp-")], sizeof(basename)-1);
 
-                snprintf(unit, sizeof(unit), PREFIX "/lib/systemd/system/%s", basename);
+                snprintf(unit, sizeof(unit), "/usr/lib/systemd/system/%s", basename);
                 if (stat(unit, &sb) != -1)
                         continue;
 

@@ -7,11 +7,6 @@
 #include <sys/wait.h>
 #include <string.h>
 
-#ifndef PREFIX
-#define PREFIX ""
-#endif
-// or "/usr"
-
 char* read_systemd_variable(const char *unit, const char *property) {
 	int filedes[2];
 	if (pipe(filedes) == -1) {
@@ -29,7 +24,7 @@ char* read_systemd_variable(const char *unit, const char *property) {
 		close(filedes[0]);
 		char *arg;
 		asprintf(&arg, "--property=%s", property);
-		execl(PREFIX "/bin/systemctl", "systemctl", "show", unit, arg, NULL);
+		execl("/usr/bin/systemctl", "systemctl", "show", unit, arg, NULL);
 		perror("execl");
 		_exit(1);
 	}
