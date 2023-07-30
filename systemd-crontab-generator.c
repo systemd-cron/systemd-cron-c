@@ -36,6 +36,8 @@
             2016 Alexandre Detiste - _this_ C rewrite
                  that re-implements the logic in the Python version
                  with some extra ideas from the Rust version
+            2023/07 Alexandre Detiste - rewrite of the Python version
+                                        in OO fashion with tests
 ***/
 
 #define _GNU_SOURCE
