@@ -1,0 +1,5 @@
+systemd-cron (2.0~20230730) UNRELEASED; urgency=low
+
+  * C rewrite
+
+ -- Alexandre Detiste <alexandre.detiste@gmail.com>  Sat, 29 Jul 2023 16:31:04 +0200

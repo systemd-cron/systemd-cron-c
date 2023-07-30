@@ -1,0 +1,7 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Source: https://github.com/systemd-cron/systemd-cron-c
+
+Files: *
+Copyright: © 2013 Shawn Landden <shawn@churchofgit.com>
+           © 2014-2022 Alexandre Detiste <alexandre.detiste@gmail.com>
+License: GPL-2+

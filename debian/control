@@ -1,0 +1,42 @@
+Source: systemd-cron
+Section: admin
+Priority: optional
+Maintainer: Debian Systemd Maintainers <pkg-systemd-maintainers@lists.alioth.debian.org>
+Uploaders: Alexandre Detiste <alexandre.detiste@gmail.com>
+Build-Depends:
+ debhelper-compat (= 13),
+ dh-sequence-cruft,
+Standards-Version: 4.6.2
+Vcs-Git: https://salsa.debian.org/detiste-guest/systemd-cron-c.git
+Vcs-Browser: https://salsa.debian.org/detiste-guest/systemd-cron-c
+Homepage: https://github.com/systemd-cron/systemd-cron-c
+Rules-Requires-Root: no
+
+Package: systemd-cron
+Architecture: linux-any
+Depends:
+ systemd-sysv,
+ ${shlibs:Depends},
+ ${misc:Depends},
+Suggests: default-mta | exim4 | mail-transport-agent
+Provides: cron-daemon, anacron
+Conflicts: cron-daemon, anacron
+Replaces: anacron,
+ cron,
+ cronie,
+ bcron
+Pre-Depends:
+    ${misc:Pre-Depends},
+    cron-daemon-common
+Description: systemd units to provide cron daemon & anacron functionality
+ Provides systemd units to run cron jobs in /etc/cron.hourly cron.daily
+ cron.weekly and cron.monthly directories, without having cron
+ or anacron installed.
+ It also provides a generator that dynamicaly translate /etc/crontab,
+ /etc/cron.d/* and user cronjobs in systemd units.
+ Please notice this package provide a different set of features
+ than Vixie-cron; trying to remain as simple as possible.
+ By example, to avoid to run process through a wrapper,
+ but have instead systemd run those directly,
+ it only send mails on error, including only a small blurb
+ from the Journal; but doesn't send the full output of processes.
