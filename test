@@ -1,4 +1,6 @@
 #!/bin/bash
+set -e
+
 rm -rf /tmp/p
 mkdir /tmp/p
 /lib/systemd/system-generators/systemd-crontab-generator /tmp/p

@@ -66,6 +66,7 @@
 #define REBOOT_FILE "/run/crond.reboot"
 
 static const char *arg_dest = "/tmp";
+char *timers_dir = NULL;
 bool debug = false;
 
 const char *daysofweek[] = {"Sun","Mon","Tue","Wed","Thu","Fri","Sat","Sun"};
@@ -188,8 +189,7 @@ bool str_to_bool(char *string) {
            !strcmp(string,"1");
 }
 
-void generate_unit(const char *timers_dir,
-                   const char *unit,
+void generate_unit(const char *unit,
                    const char *line,
                    const char *fullname,
                    const bool reboot,
@@ -228,7 +228,6 @@ void generate_unit(const char *timers_dir,
          fputs("Persistent=true\n", outp);
     fclose(outp);
 
-    mkdir(timers_dir, S_IRUSR | S_IWUSR | S_IXUSR);
     char *link;
     asprintf(&link, "%s/%s.timer", timers_dir, unit);
     symlink(outf, link);
@@ -284,9 +283,7 @@ void generate_unit(const char *timers_dir,
         fputs("\n", outp);
     }
 
-    if (strcmp(user, "root")) {
-        fprintf(outp, "User=%s\n", user);
-    }
+    fprintf(outp, "User=%s\n", user);
     if (batch) {
         fputs("CPUSchedulingPolicy=idle\n", outp);
         fputs("IOSchedulingClass=idle\n", outp);
@@ -325,7 +322,6 @@ static int parse_crontab(const char *dirname, const char *filename, char *userta
         env *curr = NULL;
 
         /* out */
-        char *timers_dir = NULL;
         sequence *seq_head = NULL;
         sequence *seq_curr = NULL;
         char *unit = NULL;
@@ -336,8 +332,6 @@ static int parse_crontab(const char *dirname, const char *filename, char *userta
             free(fullname);
             return -errno;
         }
-
-        asprintf(&timers_dir, "%s/cron.target.wants", arg_dest);
 
         while (fgets(line, sizeof(line), fp)) {
                 p = strchr(line, '\n');
@@ -557,7 +551,7 @@ static int parse_crontab(const char *dirname, const char *filename, char *userta
                     asprintf(&unit, "cron-%s-%s-%d", filename, user, seq_curr->val);
                 }
 
-                generate_unit(timers_dir,
+                generate_unit(
                    unit,
                    line,
                    fullname,
@@ -577,7 +571,6 @@ static int parse_crontab(const char *dirname, const char *filename, char *userta
                 free(unit);
         }
         free(fullname);
-        free(timers_dir);
         fclose(fp);
 
         curr = head;
@@ -655,22 +648,42 @@ int parse_parts_dir(const char *period) {
         return 0;
     }
 
+    char *fullname;
+    char *unit;
     while ((dent = readdir(dirp))) {
+        asprintf(&fullname, "%s/%s", dirname, dent->d_name);
+        asprintf(&unit, "cron-%s-%s", period, dent->d_name);
+
         if (dent->d_name[0] == '.') // '.', '..', '.placeholder'
             continue;
         if (strstr(dent->d_name, ".dpkg-") != NULL) {
-            log_msg(5, "ignoring /etc/cron.XXX/", dent->d_name); // TODO
+            log_msg(5, "ignoring ", fullname);
             continue;
         }
         if (!strcmp(dent->d_name, "0anacron")) continue;
         if (is_native(dent->d_name)) continue;
 
-        // WIP
-        printf("TODO %s/%s\n", dirname, dent->d_name);
-
+        generate_unit(
+            unit,       //unit
+            fullname,   //line (bad)
+            fullname,   //fullname
+            false,      //reboot
+            period,     //schedule
+            true,       //peristent
+            false,      //usertab
+            false,      //anacrontab
+            "root",     //user
+            0,          //delay
+            fullname,   //command
+            "/bin/sh",  //shell
+            false,      //batch
+            NULL        //environment
+        );
     }
     closedir(dirp);
     free(dirname);
+    free(fullname);
+    free(unit);
     return 0;
 }
 
@@ -715,6 +728,10 @@ int main(int argc, char *argv[]) {
     }
 
     umask(0022);
+
+    asprintf(&timers_dir, "%s/cron.target.wants", arg_dest);
+    mkdir(timers_dir, S_IRUSR | S_IWUSR | S_IXUSR);
+
     parse_crontab("/etc", "crontab", NULL, false);
     parse_crontab("/etc", "anacrontab", "root", true);
     parse_dir(true, "/etc/cron.d");
@@ -732,6 +749,8 @@ int main(int argc, char *argv[]) {
         // schedule rerun
         workaround_var_not_mounted();
     }
+
+    free(timers_dir);
 
     return 0;
 }
