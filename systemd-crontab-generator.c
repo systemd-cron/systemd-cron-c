@@ -454,8 +454,6 @@ static int parse_crontab(const char *dirname, const char *filename, char *userta
                 fprintf(outp, "Description=[Timer] \"%s\"\n", line);
                 fputs("Documentation=man:systemd-crontab-generator(8)\n", outp);
                 fputs("PartOf=cron.target\n", outp);
-                fputs("RefuseManualStart=true\n", outp);
-                fputs("RefuseManualStop=true\n", outp);
                 fprintf(outp, "SourcePath=%s\n\n", fullname);
 
                 fputs("[Timer]\n", outp);
@@ -480,8 +478,6 @@ static int parse_crontab(const char *dirname, const char *filename, char *userta
                 fputs("[Unit]\n", outp);
                 fprintf(outp, "Description=[Cron] \"%s\"\n", line);
                 fputs("Documentation=man:systemd-crontab-generator(8)\n", outp);
-                fputs("RefuseManualStart=true\n", outp);
-                fputs("RefuseManualStop=true\n", outp);
                 fprintf(outp, "SourcePath=%s\n", fullname);
                 if ((usertab && !anacrontab) || strcmp(user, "root")) {
                     fputs("Requires=systemd-user-sessions.service\n", outp);
