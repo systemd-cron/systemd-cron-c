@@ -2,5 +2,6 @@
 /debhelper-build-stamp
 /.debhelper/
 /*.debhelper
+/*.debhelper.log
 /systemd-cron.substvars
 /systemd-cron/

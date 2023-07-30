@@ -1,0 +1,13 @@
+[Unit]
+Description=systemd-cron path monitor
+Documentation=man:systemd.cron(7)
+
+[Path]
+PathChanged=/etc/crontab
+PathChanged=/etc/cron.d
+PathChanged=/etc/anacrontab
+PathChanged=/var/spool/cron/crontabs
+PathChanged=/etc/cron.hourly
+PathChanged=/etc/cron.daily
+PathChanged=/etc/cron.weekly
+PathChanged=/etc/cron.monthly
