@@ -5,6 +5,8 @@
 #include <unistd.h>
 #include <stdio.h>
 
+#define TIMERS_DIR "/var/lib/systemd/timers"
+
 int main(int argc, char *argv[]) {
         DIR *dirp;
         struct dirent *dent;
@@ -13,10 +15,15 @@ int main(int argc, char *argv[]) {
         char basename[170];
         char unit[200];
 
-        dirp = opendir("/var/lib/systemd/timers");
+        if(chdir(TIMERS_DIR)) {
+                return 0;
+        }
+
+        dirp = opendir(TIMERS_DIR);
         if (dirp == NULL) {
                 return 0;
         }
+
         while ((dent = readdir(dirp))) {
                 if (strncmp(dent->d_name, "stamp-cron-", strlen("stamp-cron-")))
                         continue;
@@ -33,8 +40,9 @@ int main(int argc, char *argv[]) {
                         continue;
 
                 printf("Removing stale stamp /var/lib/systemd/timers/%s\n", dent->d_name);
-                chdir("/var/lib/systemd/timers");
-                unlink(dent->d_name);
+                if(unlink(dent->d_name)) {
+                     perror("failed");
+                };
 	}
         closedir(dirp);
 }
