@@ -8,4 +8,4 @@ mkdir /tmp/p
 rm -rf /tmp/c
 mkdir /tmp/c
 ./systemd-crontab-generator /tmp/c
-colordiff -u /tmp/p /tmp/c
+colordiff -Nur /tmp/p /tmp/c

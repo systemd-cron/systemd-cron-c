@@ -65,6 +65,27 @@
 // when switching from/to Vixie-Cron
 #define REBOOT_FILE "/run/crond.reboot"
 
+typedef struct pair
+{
+    char *part;
+    char *timer;
+} pair;
+
+pair PART2TIMER[5] = {
+    {"apt-compat", "apt-daily"},
+    {"dpkg", "dpkg-db-backup"},
+    {"plocate", "plocate-updatedb"},
+    {"sysstat", "sysstat-summary"},
+    {NULL, NULL},
+};
+
+pair CROND2TIMER[3] = {
+    {"ntpsec", "ntpsec-rotate-stats"},
+    {"sysstat", "sysstat-collect"},
+    {NULL, NULL},
+};
+
+
 static const char *arg_dest = "/tmp";
 char *timers_dir = NULL;
 bool debug = false;
@@ -594,7 +615,7 @@ static int parse_crontab(const char *dirname, const char *filename, char *userta
         return 0;
 }
 
-bool is_native(const char *unit_name) {
+bool is_masked(const char *unit_name, const pair *distro) {
     struct stat sb;
     char *sys_unit;
     char *etc_unit;
@@ -603,7 +624,18 @@ bool is_native(const char *unit_name) {
     bool native = (stat(sys_unit, &sb) != -1) || (stat(etc_unit, &sb) != -1);
     free(sys_unit);
     free(etc_unit);
-    return native;
+    if (native) return true;
+
+    for(int i=0; distro[i].part != NULL; i++) {
+        if (!strcmp(unit_name, distro[i].part)) {
+            char *unit;
+            asprintf(&unit, "/usr/lib/systemd/system/%s.timer", distro[i].timer);
+            native = (stat(unit, &sb) != -1);
+            free(unit);
+            if (native) return true;
+        };
+    }
+    return false;
 }
 
 int parse_dir(bool system, const char *dirname) {
@@ -623,7 +655,7 @@ int parse_dir(bool system, const char *dirname) {
                log_msg(5, "ignoring /etc/cron.d/", dent->d_name);
                continue;
             }
-            if (is_native(dent->d_name)) {
+            if (is_masked(dent->d_name, CROND2TIMER)) {
                log_msg(5, "ignoring because native timer is present: /etc/cron.d/", dent->d_name);
                continue;
             }
@@ -662,7 +694,10 @@ int parse_parts_dir(const char *period, const int delay) {
             continue;
         }
         if (!strcmp(dent->d_name, "0anacron")) continue;
-        if (is_native(dent->d_name)) continue;
+        if (is_masked(dent->d_name, PART2TIMER)) {
+            log_msg(5, "ignoring because native timer is present: ", fullname);
+            continue;
+        }
 
         generate_unit(
             unit,       //unit
