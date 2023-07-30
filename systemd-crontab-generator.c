@@ -636,7 +636,7 @@ int parse_dir(bool system, const char *dirname) {
     return 0;
 }
 
-int parse_parts_dir(const char *period) {
+int parse_parts_dir(const char *period, const int delay) {
     char *dirname;
     asprintf(&dirname, "/etc/cron.%s", period);
 
@@ -674,7 +674,7 @@ int parse_parts_dir(const char *period) {
             false,      //usertab
             false,      //anacrontab
             "root",     //user
-            0,          //delay
+            delay,      //delay
             fullname,   //command
             "/bin/sh",  //shell
             false,      //batch
@@ -736,11 +736,11 @@ int main(int argc, char *argv[]) {
     parse_crontab("/etc", "crontab", NULL, false);
     parse_crontab("/etc", "anacrontab", "root", true);
     parse_dir(true, "/etc/cron.d");
-    parse_parts_dir("hourly");
-    parse_parts_dir("daily");
-    parse_parts_dir("weekly");
-    parse_parts_dir("monthly");
-    parse_parts_dir("yearly");
+    parse_parts_dir("hourly", 5);
+    parse_parts_dir("daily", 10);
+    parse_parts_dir("weekly", 15);
+    parse_parts_dir("monthly", 20);
+    parse_parts_dir("yearly", 25);
 
     if (stat(USER_CRONTABS, &sb) != -1) {
         // /var is available
