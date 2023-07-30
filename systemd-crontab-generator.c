@@ -745,7 +745,7 @@ int main(int argc, char *argv[]) {
     if (stat(USER_CRONTABS, &sb) != -1) {
         // /var is available
         parse_dir(false, USER_CRONTABS);
-        close(open(REBOOT_FILE, O_CREAT));
+        close(open(REBOOT_FILE, O_CREAT, 0644));
     } else {
         // schedule rerun
         workaround_var_not_mounted();
