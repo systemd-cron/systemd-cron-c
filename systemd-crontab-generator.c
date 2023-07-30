@@ -457,7 +457,6 @@ static int parse_crontab(const char *dirname, const char *filename, char *userta
                 fprintf(outp, "SourcePath=%s\n\n", fullname);
 
                 fputs("[Timer]\n", outp);
-                fprintf(outp, "Unit=%s.service\n", unit);
                 if(reboot)
                     fputs("OnBootSec=1m\n", outp);
                 else
