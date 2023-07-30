@@ -2,6 +2,7 @@
   This file is part of systemd-cron.
 
   Copyright 2013 Shawn Landden
+            2016-2023 Alexandre Detiste
 
   systemd-cron is free software; you can redistribute it and/or modify it
   under the terms of the GNU Lesser General Public License as published by
@@ -93,32 +94,32 @@ void log_msg(int level, char *message, char *message2) {
 }
 
 static int parse_dow(char *dow, char *dows){
-        char c[2] = {"\0\0"};
+    char c[2] = {"\0\0"};
 
-        dows[0] = '\0';
+    dows[0] = '\0';
 
-        for(unsigned s = 0;s < strlen(dow);s++) {
-                c[0] = dow[s];
-                if (strchr(isdow, c[0]))
-                        strncpy(dows + strlen(dows), daysofweek[atoi(&c[0])], 128 - strlen(dows));
-                else if (c[0] == '*')
-                        continue;
-                else {
-                        int l = strlen(dows);
-                        if (l < 128) {
-                                dows[l] = c[0];
-                                dows[l+1] = '\0';
-                        }
-                }
-        }
-
-        int l = strlen(dows);
-        if (l) {
-                dows[l] = ' ';
+    for(unsigned s = 0;s < strlen(dow);s++) {
+        c[0] = dow[s];
+        if (strchr(isdow, c[0]))
+            strncpy(dows + strlen(dows), daysofweek[atoi(&c[0])], 128 - strlen(dows));
+        else if (c[0] == '*')
+            continue;
+        else {
+            int l = strlen(dows);
+            if (l < 128) {
+                dows[l] = c[0];
                 dows[l+1] = '\0';
+            }
         }
+    }
 
-        return 0;
+    int l = strlen(dows);
+    if (l) {
+        dows[l] = ' ';
+        dows[l+1] = '\0';
+    }
+
+    return 0;
 }
 
 struct text_dict
@@ -187,6 +188,114 @@ bool str_to_bool(char *string) {
            !strcmp(string,"1");
 }
 
+void generate_unit(const char *timers_dir,
+                   const char *unit,
+                   const char *line,
+                   const char *fullname,
+                   const bool reboot,
+                   const char *schedule,
+                   const bool persistent,
+                   const bool usertab,
+                   const bool anacrontab,
+                   const char *user,
+                   const int delay,
+                   const char *command,
+                   const char *shell,
+                   const bool batch,
+                   env *head) {
+    env *curr = NULL;
+    char *outf = NULL;
+    FILE *outp = NULL;
+
+    asprintf(&outf, "%s/%s.timer", arg_dest, unit);
+    outp = fopen(outf, "w");
+    if(outp == NULL) {
+        log_msg(3, "Couldn't create output, aborting: ", outf);
+        exit(1);
+    }
+    fputs("[Unit]\n", outp);
+    fprintf(outp, "Description=[Timer] \"%s\"\n", line);
+    fputs("Documentation=man:systemd-crontab-generator(8)\n", outp);
+    fputs("PartOf=cron.target\n", outp);
+    fprintf(outp, "SourcePath=%s\n\n", fullname);
+
+    fputs("[Timer]\n", outp);
+    if(reboot)
+         fputs("OnBootSec=1m\n", outp);
+    else
+         fprintf(outp, "OnCalendar=%s\n", schedule);
+    if (persistent)
+         fputs("Persistent=true\n", outp);
+    fclose(outp);
+
+    mkdir(timers_dir, S_IRUSR | S_IWUSR | S_IXUSR);
+    char *link;
+    asprintf(&link, "%s/%s.timer", timers_dir, unit);
+    symlink(outf, link);
+    free(link);
+    free(outf);
+
+    asprintf(&outf, "%s/%s.service", arg_dest, unit);
+    outp = fopen(outf, "w");
+    fputs("[Unit]\n", outp);
+    fprintf(outp, "Description=[Cron] \"%s\"\n", line);
+    fputs("Documentation=man:systemd-crontab-generator(8)\n", outp);
+    fprintf(outp, "SourcePath=%s\n", fullname);
+    if ((usertab && !anacrontab) || strcmp(user, "root")) {
+        fputs("Requires=systemd-user-sessions.service\n", outp);
+        struct passwd *pwd;
+        pwd = getpwnam(user);
+        fprintf(outp, "RequiresMountsFor=%s\n", pwd->pw_dir);
+    }
+    fputs("\n", outp);
+
+    fputs("[Service]\n", outp);
+    fputs("Type=oneshot\n", outp);
+    fputs("IgnoreSIGPIPE=false\n", outp);
+    if (!reboot && delay)
+        fprintf(outp, "ExecStartPre=-/usr/lib/systemd-cron/boot_delay %d\n", delay);
+
+    struct stat sb;
+    if (stat(command, &sb) != -1)
+        fprintf(outp, "ExecStart=%s\n", command);
+    else {
+        char* script;
+        asprintf(&script, "%s/%s.sh", arg_dest, unit);
+        fprintf(outp, "ExecStart=%s %s\n", shell, script);
+        FILE *sh;
+        sh = fopen(script, "w");
+        fprintf(sh, "%s\n", command);
+        fclose(sh);
+        free(script);
+    }
+
+    if (head) {
+        fputs("Environment=", outp);
+        curr = head;
+        while(curr) {
+            if (strlen(curr->val) == 0)
+                {}
+            else if (strchr(curr->val, ' '))
+                fprintf(outp, "\"%s=%s\" ", curr->key, curr->val);
+            else
+                fprintf(outp, "%s=%s ", curr->key, curr->val);
+            curr = curr->next;
+        }
+        fputs("\n", outp);
+    }
+
+    if (strcmp(user, "root")) {
+        fprintf(outp, "User=%s\n", user);
+    }
+    if (batch) {
+        fputs("CPUSchedulingPolicy=idle\n", outp);
+        fputs("IOSchedulingClass=idle\n", outp);
+    }
+
+    fclose(outp);
+    free(outf);
+}
+
 static int parse_crontab(const char *dirname, const char *filename, char *usertab, bool anacrontab) {
         char *fullname;
         asprintf(&fullname, "%s/%s", dirname, filename);
@@ -219,9 +328,7 @@ static int parse_crontab(const char *dirname, const char *filename, char *userta
         char *timers_dir = NULL;
         sequence *seq_head = NULL;
         sequence *seq_curr = NULL;
-        FILE *outp = NULL;
         char *unit = NULL;
-        char *outf = NULL;
 
         fp = fopen(fullname, "r");
         if (!fp) {
@@ -450,99 +557,24 @@ static int parse_crontab(const char *dirname, const char *filename, char *userta
                     asprintf(&unit, "cron-%s-%s-%d", filename, user, seq_curr->val);
                 }
 
-                // WIP cut this in a function to be called by parse_parts_dir()
-
-                asprintf(&outf, "%s/%s.timer", arg_dest, unit);
-                outp = fopen(outf, "w");
-                if(outp == NULL) {
-                    log_msg(3, "Couldn't create output, aborting: ", outf);
-                    exit(1);
-                }
-                fputs("[Unit]\n", outp);
-                fprintf(outp, "Description=[Timer] \"%s\"\n", line);
-                fputs("Documentation=man:systemd-crontab-generator(8)\n", outp);
-                fputs("PartOf=cron.target\n", outp);
-                fprintf(outp, "SourcePath=%s\n\n", fullname);
-
-                fputs("[Timer]\n", outp);
-                if(reboot)
-                    fputs("OnBootSec=1m\n", outp);
-                else
-                    fprintf(outp, "OnCalendar=%s\n", schedule);
-                if (persistent)
-                    fputs("Persistent=true\n", outp);
-                fclose(outp);
-
-                mkdir(timers_dir, S_IRUSR | S_IWUSR | S_IXUSR);
-                char *link;
-                asprintf(&link, "%s/%s.timer", timers_dir, unit);
-                symlink(outf, link);
-                free(link);
-
-                free(outf);
-                asprintf(&outf, "%s/%s.service", arg_dest, unit);
-                outp = fopen(outf, "w");
-                fputs("[Unit]\n", outp);
-                fprintf(outp, "Description=[Cron] \"%s\"\n", line);
-                fputs("Documentation=man:systemd-crontab-generator(8)\n", outp);
-                fprintf(outp, "SourcePath=%s\n", fullname);
-                if ((usertab && !anacrontab) || strcmp(user, "root")) {
-                    fputs("Requires=systemd-user-sessions.service\n", outp);
-                    struct passwd *pwd;
-                    pwd = getpwnam(user);
-                    fprintf(outp, "RequiresMountsFor=%s\n", pwd->pw_dir);
-                }
-                fputs("\n", outp);
-
-                fputs("[Service]\n", outp);
-                fputs("Type=oneshot\n", outp);
-                fputs("IgnoreSIGPIPE=false\n", outp);
-                if (!reboot && delay)
-                    fprintf(outp, "ExecStartPre=-/usr/lib/systemd-cron/boot_delay %d\n", delay);
-                struct stat sb;
-                if (stat(command, &sb) != -1)
-                    fprintf(outp, "ExecStart=%s\n", command);
-                else {
-                    char* script;
-                    asprintf(&script, "%s/%s.sh", arg_dest, unit);
-                    fprintf(outp, "ExecStart=%s %s\n", shell, script);
-                    FILE *sh;
-                    sh = fopen(script, "w");
-                    fprintf(sh, "%s\n", command);
-                    fclose(sh);
-                    free(script);
-                }
-
-                if (head) {
-                    fputs("Environment=", outp);
-                    curr = head;
-                    while(curr) {
-                        if (strlen(curr->val) == 0)
-                            {}
-                        else if (strchr(curr->val, ' '))
-                            fprintf(outp, "\"%s=%s\" ", curr->key, curr->val);
-                        else
-                            fprintf(outp, "%s=%s ", curr->key, curr->val);
-                        curr = curr->next;
-                    }
-                    fputs("\n", outp);
-                }
-
-                if (strcmp(user, "root")) {
-                    fprintf(outp, "User=%s\n", user);
-                }
-                if (batch) {
-                    fputs("CPUSchedulingPolicy=idle\n", outp);
-                    fputs("IOSchedulingClass=idle\n", outp);
-                }
-
-                fclose(outp);
+                generate_unit(timers_dir,
+                   unit,
+                   line,
+                   fullname,
+                   reboot,
+                   schedule,
+                   persistent,
+                   usertab,
+                   anacrontab,
+                   user,
+                   delay,
+                   command,
+                   shell,
+                   batch,
+                   head);
 
                 free(schedule);
                 free(unit);
-                free(outf);
-
-                // end WIP
         }
         free(fullname);
         free(timers_dir);
@@ -569,132 +601,137 @@ static int parse_crontab(const char *dirname, const char *filename, char *userta
 }
 
 bool is_native(const char *unit_name) {
-	struct stat sb;
-	char *sys_unit;
-	char *etc_unit;
-	asprintf(&sys_unit, "/usr/lib/systemd/system/%s.timer", unit_name);
-	asprintf(&etc_unit, "/etc/systemd/system/%s.timer", unit_name);
-	bool native = (stat(sys_unit, &sb) != -1) || (stat(etc_unit, &sb) != -1);
-	free(sys_unit);
-	free(etc_unit);
-	return native;
+    struct stat sb;
+    char *sys_unit;
+    char *etc_unit;
+    asprintf(&sys_unit, "/usr/lib/systemd/system/%s.timer", unit_name);
+    asprintf(&etc_unit, "/etc/systemd/system/%s.timer", unit_name);
+    bool native = (stat(sys_unit, &sb) != -1) || (stat(etc_unit, &sb) != -1);
+    free(sys_unit);
+    free(etc_unit);
+    return native;
 }
 
 int parse_dir(bool system, const char *dirname) {
-	DIR *dirp;
-	struct dirent *dent;
+    DIR *dirp;
+    struct dirent *dent;
 
-	dirp = opendir(dirname);
-	if (dirp == NULL) {
-		return 0;
-	}
-
-	while ((dent = readdir(dirp))) {
-                if (dent->d_name[0] == '.') // '.', '..', '.placeholder'
-                    continue;
-                if (system) {
-                    if (strstr(dent->d_name, ".dpkg-") != NULL) {
-                        log_msg(5, "ignoring /etc/cron.d/", dent->d_name);
-                        continue;
-                    }
-                    if (is_native(dent->d_name)) {
-                        log_msg(5, "ignoring because native timer is present: /etc/cron.d/", dent->d_name);
-                        continue;
-                    }
-                    parse_crontab(dirname, dent->d_name, NULL, false);
-                } else
-                    parse_crontab(dirname, dent->d_name, dent->d_name, false);
-	}
-        closedir(dirp);
+    dirp = opendir(dirname);
+    if (dirp == NULL) {
         return 0;
+    }
+
+    while ((dent = readdir(dirp))) {
+        if (dent->d_name[0] == '.') // '.', '..', '.placeholder'
+            continue;
+        if (system) {
+            if (strstr(dent->d_name, ".dpkg-") != NULL) {
+               log_msg(5, "ignoring /etc/cron.d/", dent->d_name);
+               continue;
+            }
+            if (is_native(dent->d_name)) {
+               log_msg(5, "ignoring because native timer is present: /etc/cron.d/", dent->d_name);
+               continue;
+            }
+            parse_crontab(dirname, dent->d_name, NULL, false);
+        } else {
+            parse_crontab(dirname, dent->d_name, dent->d_name, false);
+        }
+    }
+    closedir(dirp);
+    return 0;
 }
 
 int parse_parts_dir(const char *period) {
-        char *dirname;
-        asprintf(&dirname, "/etc/cron.%s", period);
+    char *dirname;
+    asprintf(&dirname, "/etc/cron.%s", period);
 
-	DIR *dirp;
-	struct dirent *dent;
+    DIR *dirp;
+    struct dirent *dent;
 
-	dirp = opendir(dirname);
-	if (dirp == NULL) {
-		log_msg(5, "cannot open ", dirname);
-		return 0;
-	}
-
-	while ((dent = readdir(dirp))) {
-		if (dent->d_name[0] == '.') // '.', '..', '.placeholder'
-		    continue;
-		if (strstr(dent->d_name, ".dpkg-") != NULL) {
-			log_msg(5, "ignoring /etc/cron.XXX/", dent->d_name); // TODO
-			continue;
-		}
-                if (!strcmp(dent->d_name, "0anacron")) continue;
-                if (is_native(dent->d_name)) continue;
-
-		// WIP
-                printf("TODO %s/%s\n", dirname, dent->d_name);
-
-	}
-        closedir(dirp);
-        free(dirname);
+    dirp = opendir(dirname);
+    if (dirp == NULL) {
+        log_msg(5, "cannot open ", dirname);
         return 0;
+    }
+
+    while ((dent = readdir(dirp))) {
+        if (dent->d_name[0] == '.') // '.', '..', '.placeholder'
+            continue;
+        if (strstr(dent->d_name, ".dpkg-") != NULL) {
+            log_msg(5, "ignoring /etc/cron.XXX/", dent->d_name); // TODO
+            continue;
+        }
+        if (!strcmp(dent->d_name, "0anacron")) continue;
+        if (is_native(dent->d_name)) continue;
+
+        // WIP
+        printf("TODO %s/%s\n", dirname, dent->d_name);
+
+    }
+    closedir(dirp);
+    free(dirname);
+    return 0;
+}
+
+void workaround_var_not_mounted() {
+    char *unit;
+    asprintf(&unit, "%s/cron-after-var.service", arg_dest);
+    FILE *f;
+    f = fopen(unit, "w");
+    fputs("[Unit]\n", f);
+    fputs("Description=Rerun systemd-crontab-generator because /var is a separate mount\n", f);
+    fputs("After=cron.target\n", f);
+    fputs("ConditionDirectoryNotEmpty=" USER_CRONTABS "\n", f);
+
+    fputs("\n[Service]\n", f);
+    fputs("Type=oneshot\n", f);
+    fputs("ExecStart=/bin/sh -c '/usr/bin/systemctl daemon-reload ; "
+                                "/usr/bin/systemctl try-restart cron.target'\n", f);
+    fclose(f);
+
+    char *dir;
+    asprintf(&dir, "%s/multi-user.target.wants", arg_dest);
+    mkdir(dir, S_IRUSR | S_IWUSR | S_IXUSR);
+    free(dir);
+
+    char *link;
+    asprintf(&link, "%s/multi-user.target.wants/cron-after-var.service", arg_dest);
+    symlink(unit, link);
+    free(link);
+    free(unit);
 }
 
 int main(int argc, char *argv[]) {
-        if (argc > 1)
-                arg_dest = argv[1];
-        else
-                debug = true;
+    if (argc > 1)
+        arg_dest = argv[1];
+    else
+        debug = true;
 
-        struct stat sb;
-        if (stat(arg_dest, &sb) == -1) {
-            fprintf(stderr, "%s doesn't exist.\n", arg_dest);
-            exit(1);
-        }
+    struct stat sb;
+    if (stat(arg_dest, &sb) == -1) {
+        fprintf(stderr, "%s doesn't exist.\n", arg_dest);
+        exit(1);
+    }
 
-        umask(0022);
-        parse_crontab("/etc", "crontab", NULL, false);
-        parse_crontab("/etc", "anacrontab", "root", true);
-        parse_dir(true, "/etc/cron.d");
-        parse_parts_dir("hourly");
-        parse_parts_dir("daily");
-        parse_parts_dir("weekly");
-        parse_parts_dir("monthly");
-        parse_parts_dir("yearly");
+    umask(0022);
+    parse_crontab("/etc", "crontab", NULL, false);
+    parse_crontab("/etc", "anacrontab", "root", true);
+    parse_dir(true, "/etc/cron.d");
+    parse_parts_dir("hourly");
+    parse_parts_dir("daily");
+    parse_parts_dir("weekly");
+    parse_parts_dir("monthly");
+    parse_parts_dir("yearly");
 
-        if (stat(USER_CRONTABS, &sb) != -1) {
-            // /var is available
-            parse_dir(false, USER_CRONTABS);
-            close(open(REBOOT_FILE, O_CREAT));
-        } else {
-            // schedule rerun
-            char *unit;
-            asprintf(&unit, "%s/cron-after-var.service", arg_dest);
-            FILE *f;
-            f = fopen(unit, "w");
-            fputs("[Unit]\n", f);
-            fputs("Description=Rerun systemd-crontab-generator because /var is a separate mount\n", f);
-            fputs("After=cron.target\n", f);
-            fputs("ConditionDirectoryNotEmpty=" USER_CRONTABS "\n", f);
+    if (stat(USER_CRONTABS, &sb) != -1) {
+        // /var is available
+        parse_dir(false, USER_CRONTABS);
+        close(open(REBOOT_FILE, O_CREAT));
+    } else {
+        // schedule rerun
+        workaround_var_not_mounted();
+    }
 
-            fputs("\n[Service]\n", f);
-            fputs("Type=oneshot\n", f);
-            fputs("ExecStart=/bin/sh -c '/usr/bin/systemctl daemon-reload ; "
-                                        "/usr/bin/systemctl try-restart cron.target'\n", f);
-            fclose(f);
-
-            char *dir;
-            asprintf(&dir, "%s/multi-user.target.wants", arg_dest);
-            mkdir(dir, S_IRUSR | S_IWUSR | S_IXUSR);
-            free(dir);
-
-            char *link;
-            asprintf(&link, "%s/multi-user.target.wants/cron-after-var.service", arg_dest);
-            symlink(unit, link);
-            free(link);
-            free(unit);
-        }
-
-        return 0;
+    return 0;
 }
