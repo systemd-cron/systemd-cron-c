@@ -5,6 +5,7 @@ Maintainer: Debian Systemd Maintainers <pkg-systemd-maintainers@lists.alioth.deb
 Uploaders: Alexandre Detiste <alexandre.detiste@gmail.com>
 Build-Depends:
  debhelper-compat (= 13),
+ libmd-dev,
  dh-sequence-cruft,
 Standards-Version: 4.6.2
 Vcs-Git: https://salsa.debian.org/detiste-guest/systemd-cron-c.git
