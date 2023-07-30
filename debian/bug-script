@@ -1,0 +1,5 @@
+#!/bin/sh
+echo "-- output of systemctl list-timers" >&3
+systemctl list-timers >&3
+echo "-- output of systemd-delta" >&3
+systemd-delta | sed -n '/cron/,/^\[/p' | sed -e \$d >&3
