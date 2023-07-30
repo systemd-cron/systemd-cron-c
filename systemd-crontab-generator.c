@@ -252,7 +252,7 @@ void generate_unit(const char *unit,
     fputs("Type=oneshot\n", outp);
     fputs("IgnoreSIGPIPE=false\n", outp);
     if (!reboot && delay)
-        fprintf(outp, "ExecStartPre=-/usr/lib/systemd-cron/boot_delay %d\n", delay);
+        fprintf(outp, "ExecStartPre=-/usr/libexec/systemd-cron/boot_delay %d\n", delay);
 
     struct stat sb;
     if (stat(command, &sb) != -1)
