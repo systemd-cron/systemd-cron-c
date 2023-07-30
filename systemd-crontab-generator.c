@@ -319,266 +319,267 @@ static int parse_crontab(const char *dirname,
                          const char *filename,
                          const char *usertab,
                          bool anacrontab) {
-        char *fullname;
-        asprintf(&fullname, "%s/%s", dirname, filename);
+    char *fullname;
+    asprintf(&fullname, "%s/%s", dirname, filename);
 
-        FILE *fp = NULL;
-        char line[1024];
-        char shell[20] = "/bin/sh";
-        char *p;
+    FILE *fp = NULL;
+    char line[1024];
+    char shell[20] = "/bin/sh";
+    char *p;
 
-        char frequency[11], m[25], h[25], dom[25], mon[25], dow[25], user[65];
-        char dows[128];
-        char *schedule;
-        bool persistent = anacrontab;
-        bool batch = false;
-        bool reboot = false;
-        int delay = 0;
-        char jobid[25];
+    char frequency[11], m[25], h[25], dom[25], mon[25], dow[25], user[65];
+    char dows[128];
+    char *schedule;
+    bool persistent = anacrontab;
+    bool batch = false;
+    bool reboot = false;
+    int delay = 0;
+    char jobid[25];
 
-        char *command;
-        int skipped = 0;
+    char *command;
+    int skipped = 0;
 
-        /* fake regexp */
-        char *pos_equal;
-        char *pos_blank;
+    /* fake regexp */
+    char *pos_equal;
+    char *pos_blank;
 
-        env *head = NULL;
-        env *curr = NULL;
+    env *head = NULL;
+    env *curr = NULL;
 
-        /* out */
-        sequence *seq_head = NULL;
-        sequence *seq_curr = NULL;
-        char *unit = NULL;
+    /* out */
+    sequence *seq_head = NULL;
+    sequence *seq_curr = NULL;
+    char *unit = NULL;
 
-        fp = fopen(fullname, "r");
-        if (!fp) {
-            log_msg(3, "cannot read ", fullname);
-            free(fullname);
-            return -errno;
+    fp = fopen(fullname, "r");
+    if (!fp) {
+        log_msg(3, "cannot read ", fullname);
+        free(fullname);
+        return -errno;
+    }
+
+    while (fgets(line, sizeof(line), fp)) {
+        p = strchr(line, '\n');
+        p[0] = '\0';
+        compress_blanks(line);
+        schedule = NULL;
+        reboot = false;
+        switch(line[0]) {
+            case '\0':
+                continue;
+            case '#':
+                continue;
+            case '@':
+                sscanf(line, "%10s %n", frequency, &skipped);
+                command = line + skipped;
+                if(!strcmp(frequency,"@minutely") ||
+                   !strcmp(frequency,"@hourly") ||
+                   !strcmp(frequency,"@daily") ||
+                   !strcmp(frequency,"@weekly") ||
+                   !strcmp(frequency,"@monthly") ||
+                   !strcmp(frequency,"@quarterly") ||
+                   !strcmp(frequency,"@semiannually") ||
+                   !strcmp(frequency,"@yearly")) {
+                             schedule = strdup(&frequency[1]);
+                } else if (!strcmp(frequency,"@midnight")) {
+                             schedule = strdup("daily");
+                } else if (!strcmp(frequency, "@biannually") ||
+                           !strcmp(frequency, "@bi-annually") ||
+                           !strcmp(frequency, "@semi-annually")) {
+                             schedule = strdup("semiannually");
+                } else if (!strcmp(frequency,"@anually") ||
+                           !strcmp(frequency,"@annually")) {
+                             schedule = strdup("yearly");
+                } else if (!strcmp(frequency,"@reboot")) {
+                    struct stat sb;
+                    if (stat(REBOOT_FILE, &sb) != -1)
+                         continue;
+                    schedule = strdup(&frequency[1]);
+                    reboot = true;
+                } else {
+                     log_msg(3, "garbled time: ", line);
+                     continue;
+                }
+                if(anacrontab) {
+                     sscanf(command, "%4d %24s %n", &delay, jobid, &skipped);
+                     command += skipped;
+                }
+                break;
+            default:
+                pos_equal=strchr(line, '=');
+                pos_blank=strchr(line, ' ');
+                if ((pos_equal != NULL) &&
+                    (pos_blank == NULL || pos_equal < pos_blank)) {
+                    pos_equal[0]='\0';
+                    char *value=pos_equal+1;
+
+                    // lstrip
+                    while (value[0] == '"' || value[0] == '\''){
+                      value++;
+                    }
+
+                    // rstrip
+                    for(int i=strlen(value)-1; i>0; i--) {
+                        if (value[i] == '"' || value[i] == '\'')
+                            value[i] = '\0';
+                        else
+                            break;
+                    }
+
+                    if(strcmp("DELAY", line) == 0) {
+                        if(!sscanf(value, "%d", &delay)) {
+                            log_msg(4, "cannot read DELAY: ", value);
+                            delay = 0;
+                        }
+                        continue;
+                    }
+
+                    if(strcmp("PERSISTENT", line) == 0) {
+                        persistent = str_to_bool(value);
+                        continue;
+                    }
+
+                    if(strcmp("BATCH", line) == 0) {
+                        batch = str_to_bool(value);
+                        continue;
+                    }
+
+                    if(strcmp("SHELL", line) == 0) {
+                        if(strlen(value) > (sizeof(shell)-1)) {
+                            log_msg(3, "bad SHELL, ingnoring: ", value);
+                            continue;
+                        }
+                        strncpy(shell, value, sizeof(shell)-1);
+                    }
+
+                    head = text_dict_set(head, line, value);
+                    continue;
+             }
+
+
+             if(anacrontab) {
+                 int days;
+                 sscanf(line, "%4d %4d %24s %n", &days, &delay, jobid, &skipped);
+                 command = line + skipped;
+                 switch(days) {
+                     case(1):
+                        schedule = strdup("daily");
+                        break;
+                     case(7):
+                        schedule = strdup("weekly");
+                        break;
+                     case(30):
+                        schedule = strdup("monthly");
+                        break;
+                     case(31):
+                        schedule = strdup("monthly");
+                        break;
+                     default:
+                        log_msg(3, "unsupported anacrontab", line);
+                        continue;
+                 }
+             } else {
+                 if (!strcmp(fullname, "/etc/crontab")) {
+                     if (strstr(line, "/etc/cron.hourly") != NULL) continue;
+                     if (strstr(line, "/etc/cron.daily") != NULL) continue;
+                     if (strstr(line, "/etc/cron.weekly") != NULL) continue;
+                     if (strstr(line, "/etc/cron.monthly") != NULL) continue;
+                 }
+                 sscanf(line, "%24s %24s %24s %24s %24s %n", m, h, dom, mon, dow, &skipped);
+                 command = line + skipped;
+             }
+        }
+        if (usertab == NULL) {
+            sscanf(command, "%64s %n", user, &skipped);
+            command += skipped;
+        } else
+            strcpy(user, usertab);
+
+        if (schedule == NULL) {
+           parse_dow(dow, &dows[0]);
+           void expand_range(char* var) {
+                if(!strchr(var, '-'))
+                    return;
+                char tmp[25];
+                strncpy(tmp, var, 24);
+                int start, end;
+                sscanf(strtok(tmp, "-"), "%d", &start);
+                sscanf(strtok(NULL, "-"), "%d", &end);
+                sprintf(var, "%d", start);
+                for(int i=start+1; i <= end; i++)
+                     sprintf(var + strlen(var),",%d", i);
+            }
+            expand_range(mon);
+            expand_range(dom);
+            expand_range(h);
+            expand_range(m);
+            asprintf(&schedule, "%s*-%s-%s %s:%s:00", dows, mon, dom, h, m);
+        } else if (delay) {
+            char *delayed_schedule = NULL;
+            if (!strcmp(schedule, "hourly"))
+                asprintf(&delayed_schedule, "*-*-* *:%d:0", delay);
+            else if (!strcmp(schedule, "daily"))
+                asprintf(&delayed_schedule, "*-*-* 0:%d:0", delay);
+            else if (!strcmp(schedule, "weekly"))
+                asprintf(&delayed_schedule, "Mon *-*-* 0:%d:0", delay);
+            else if (!strcmp(schedule, "monthly"))
+                asprintf(&delayed_schedule, "*-*-1 0:%d:0", delay);
+            else if (!strcmp(schedule, "quarterly"))
+                asprintf(&delayed_schedule, "*-1,4,7,10-1 0:%d:0", delay);
+            else if (!strcmp(schedule, "semiannually"))
+                asprintf(&delayed_schedule, "*-1,7-1 0:%d:0", delay);
+            else if (!strcmp(schedule, "yearly"))
+                asprintf(&delayed_schedule, "*-1-1 0:%d:0", delay);
+            if(delayed_schedule) {
+                free(schedule);
+                schedule = delayed_schedule;
+            }
         }
 
-        while (fgets(line, sizeof(line), fp)) {
-                p = strchr(line, '\n');
-                p[0] = '\0';
-                compress_blanks(line);
-                schedule = NULL;
-                reboot = false;
-                switch(line[0]) {
-                    case '\0':
-                      continue;
-                    case '#':
-                      continue;
-                    case '@':
-                      sscanf(line, "%10s %n", frequency, &skipped);
-                      command = line + skipped;
-                      if(!strcmp(frequency,"@minutely") ||
-                         !strcmp(frequency,"@hourly") ||
-                         !strcmp(frequency,"@daily") ||
-                         !strcmp(frequency,"@weekly") ||
-                         !strcmp(frequency,"@monthly") ||
-                         !strcmp(frequency,"@quarterly") ||
-                         !strcmp(frequency,"@semiannually") ||
-                         !strcmp(frequency,"@yearly")) {
-                             schedule = strdup(&frequency[1]);
-                      } else if (!strcmp(frequency,"@midnight")) {
-                             schedule = strdup("daily");
-                      } else if (!strcmp(frequency, "@biannually") ||
-                                 !strcmp(frequency, "@bi-annually") ||
-                                 !strcmp(frequency, "@semi-annually")) {
-                             schedule = strdup("semiannually");
-                      } else if (!strcmp(frequency,"@anually") ||
-                                 !strcmp(frequency,"@annually")) {
-                             schedule = strdup("yearly");
-                      } else if (!strcmp(frequency,"@reboot")) {
-                             struct stat sb;
-                             if (stat(REBOOT_FILE, &sb) != -1)
-                                 continue;
-                             schedule = strdup(&frequency[1]);
-                             reboot = true;
-                      } else {
-                             log_msg(3, "garbled time: ", line);
-                             continue;
-                      }
-                      if(anacrontab) {
-                             sscanf(command, "%4d %24s %n", &delay, jobid, &skipped);
-                             command += skipped;
-                      }
-                      break;
-                    default:
-                      pos_equal=strchr(line, '=');
-                      pos_blank=strchr(line, ' ');
-                      if ((pos_equal != NULL) &&
-                          (pos_blank == NULL || pos_equal < pos_blank)) {
-                          pos_equal[0]='\0';
-                          char *value=pos_equal+1;
-
-                          // lstrip
-                          while (value[0] == '"' || value[0] == '\''){
-                              value++;
-                          }
-
-                          // rstrip
-                          for(int i=strlen(value)-1; i>0; i--) {
-                              if (value[i] == '"' || value[i] == '\'')
-                                  value[i] = '\0';
-                              else
-                                  break;
-                          }
-
-                          if(strcmp("DELAY", line) == 0) {
-                              if(!sscanf(value, "%d", &delay)) {
-                                  log_msg(4, "cannot read DELAY: ", value);
-                                  delay = 0;
-                              }
-                              continue;
-                          }
-
-                          if(strcmp("PERSISTENT", line) == 0) {
-                              persistent = str_to_bool(value);
-                              continue;
-                          }
-
-                          if(strcmp("BATCH", line) == 0) {
-                              batch = str_to_bool(value);
-                              continue;
-                          }
-
-                          if(strcmp("SHELL", line) == 0) {
-                              if(strlen(value) > (sizeof(shell)-1)) {
-                                  log_msg(3, "bad SHELL, ingnoring: ", value);
-                                  continue;
-                              }
-                              strncpy(shell, value, sizeof(shell)-1);
-                          }
-
-                          head = text_dict_set(head, line, value);
-
-                          continue;
-                      }
-                      if(anacrontab) {
-                          int days;
-                          sscanf(line, "%4d %4d %24s %n", &days, &delay, jobid, &skipped);
-                          command = line + skipped;
-                          switch(days) {
-                              case(1):
-                                schedule = strdup("daily");
-                                break;
-                              case(7):
-                                schedule = strdup("weekly");
-                                break;
-                              case(30):
-                                schedule = strdup("monthly");
-                                break;
-                              case(31):
-                                schedule = strdup("monthly");
-                                break;
-                              default:
-                                log_msg(3, "unsupported anacrontab", line);
-                                continue;
-                          }
-                      } else {
-                          if (!strcmp(fullname, "/etc/crontab")) {
-                              if (strstr(line, "/etc/cron.hourly") != NULL) continue;
-                              if (strstr(line, "/etc/cron.daily") != NULL) continue;
-                              if (strstr(line, "/etc/cron.weekly") != NULL) continue;
-                              if (strstr(line, "/etc/cron.monthly") != NULL) continue;
-                          }
-                          sscanf(line, "%24s %24s %24s %24s %24s %n", m, h, dom, mon, dow, &skipped);
-                          command = line + skipped;
-                      }
+        if (persistent) {
+            unsigned char digest[16];
+            MD5_CTX context;
+            MD5Init(&context);
+            MD5Update(&context, (unsigned char *)schedule, strlen(schedule)+1);
+            MD5Update(&context, (unsigned char *)command, strlen(command));
+            MD5Final(digest, &context);
+            char md5[33];
+            for(int i = 0; i < 16; ++i)
+                sprintf(&md5[i*2], "%02x", (unsigned int)digest[i]);
+            if (anacrontab) {
+                int count = 0;
+                for (int i = 0; jobid[i]; i++)
+                    if (('a' <= jobid[i] && jobid[i] <= 'z') ||
+                       ('A' <= jobid[i] && jobid[i] <= 'Z') ||
+                       ('0' <= jobid[i] && jobid[i] <= '9'))
+                        jobid[count++] = jobid[i];
+                jobid[count] = '\0';
+                asprintf(&unit, "cron-%s-%s-%s", jobid, user, md5);
+            } else
+                asprintf(&unit, "cron-%s-%s-%s", filename, user, md5);
+        } else {
+            seq_curr = seq_head;
+            bool found = false;
+            while(seq_curr) {
+                if (strcmp(seq_curr->key, user) == 0) {
+                    seq_curr->val++;
+                    found = true;
+                    break;
                 }
-                if (usertab == NULL) {
-                    sscanf(command, "%64s %n", user, &skipped);
-                    command += skipped;
-                } else
-                    strcpy(user, usertab);
+                seq_curr = seq_curr->next;
+            }
+            if (!found) {
+                seq_curr = (sequence *)malloc(sizeof(sequence));
+                seq_curr->key = (char *)malloc(strlen(user)+1);
+                strcpy(seq_curr->key, user);
+                seq_curr->val = 0;
+                seq_curr->next = seq_head;
+                seq_head = seq_curr;
+            }
+            asprintf(&unit, "cron-%s-%s-%d", filename, user, seq_curr->val);
+        }
 
-                if (schedule == NULL) {
-                    parse_dow(dow, &dows[0]);
-                    void expand_range(char* var) {
-                        if(!strchr(var, '-'))
-                            return;
-                        char tmp[25];
-                        strncpy(tmp, var, 24);
-                        int start, end;
-                        sscanf(strtok(tmp, "-"), "%d", &start);
-                        sscanf(strtok(NULL, "-"), "%d", &end);
-                        sprintf(var, "%d", start);
-                        for(int i=start+1; i <= end; i++)
-                             sprintf(var + strlen(var),",%d", i);
-                    }
-                    expand_range(mon);
-                    expand_range(dom);
-                    expand_range(h);
-                    expand_range(m);
-                    asprintf(&schedule, "%s*-%s-%s %s:%s:00", dows, mon, dom, h, m);
-                } else if (delay) {
-                    char *delayed_schedule = NULL;
-                    if (!strcmp(schedule, "hourly"))
-                        asprintf(&delayed_schedule, "*-*-* *:%d:0", delay);
-                    else if (!strcmp(schedule, "daily"))
-                        asprintf(&delayed_schedule, "*-*-* 0:%d:0", delay);
-                    else if (!strcmp(schedule, "weekly"))
-                        asprintf(&delayed_schedule, "Mon *-*-* 0:%d:0", delay);
-                    else if (!strcmp(schedule, "monthly"))
-                        asprintf(&delayed_schedule, "*-*-1 0:%d:0", delay);
-                    else if (!strcmp(schedule, "quarterly"))
-                        asprintf(&delayed_schedule, "*-1,4,7,10-1 0:%d:0", delay);
-                    else if (!strcmp(schedule, "semiannually"))
-                        asprintf(&delayed_schedule, "*-1,7-1 0:%d:0", delay);
-                    else if (!strcmp(schedule, "yearly"))
-                        asprintf(&delayed_schedule, "*-1-1 0:%d:0", delay);
-                    if(delayed_schedule) {
-                        free(schedule);
-                        schedule = delayed_schedule;
-                    }
-                }
-
-                if (persistent) {
-                    unsigned char digest[16];
-                    MD5_CTX context;
-                    MD5Init(&context);
-                    MD5Update(&context, (unsigned char *)schedule, strlen(schedule)+1);
-                    MD5Update(&context, (unsigned char *)command, strlen(command));
-                    MD5Final(digest, &context);
-                    char md5[33];
-                    for(int i = 0; i < 16; ++i)
-                        sprintf(&md5[i*2], "%02x", (unsigned int)digest[i]);
-                    if (anacrontab) {
-                        int count = 0;
-                        for (int i = 0; jobid[i]; i++)
-                            if (('a' <= jobid[i] && jobid[i] <= 'z') ||
-                                ('A' <= jobid[i] && jobid[i] <= 'Z') ||
-                                ('0' <= jobid[i] && jobid[i] <= '9'))
-                                jobid[count++] = jobid[i];
-                        jobid[count] = '\0';
-                        asprintf(&unit, "cron-%s-%s-%s", jobid, user, md5);
-                    } else
-                        asprintf(&unit, "cron-%s-%s-%s", filename, user, md5);
-                } else {
-                    seq_curr = seq_head;
-                    bool found = false;
-                    while(seq_curr) {
-                        if (strcmp(seq_curr->key, user) == 0) {
-                            seq_curr->val++;
-                            found = true;
-                            break;
-                        }
-                        seq_curr = seq_curr->next;
-                    }
-                    if (!found) {
-                        seq_curr = (sequence *)malloc(sizeof(sequence));
-                        seq_curr->key = (char *)malloc(strlen(user)+1);
-                        strcpy(seq_curr->key, user);
-                        seq_curr->val = 0;
-                        seq_curr->next = seq_head;
-                        seq_head = seq_curr;
-                    }
-                    asprintf(&unit, "cron-%s-%s-%d", filename, user, seq_curr->val);
-                }
-
-                generate_unit(
+        generate_unit(
                    unit,
                    line,
                    fullname,
@@ -594,30 +595,30 @@ static int parse_crontab(const char *dirname,
                    batch,
                    head);
 
-                free(schedule);
-                free(unit);
-        }
-        free(fullname);
-        fclose(fp);
+        free(schedule);
+        free(unit);
+    }
+    free(fullname);
+    fclose(fp);
 
+    curr = head;
+    while(curr) {
+        free(curr->key);
+        free(curr->val);
+        head = curr->next;
+        free(curr);
         curr = head;
-        while(curr) {
-                free(curr->key);
-                free(curr->val);
-                head = curr->next;
-                free(curr);
-                curr = head;
-        }
+    }
 
+    seq_curr = seq_head;
+    while(seq_curr) {
+        free(seq_curr->key);
+        seq_head = seq_curr->next;
+        free(seq_curr);
         seq_curr = seq_head;
-        while(seq_curr) {
-                free(seq_curr->key);
-                seq_head = seq_curr->next;
-                free(seq_curr);
-                seq_curr = seq_head;
-        }
+    }
 
-        return 0;
+    return 0;
 }
 
 bool is_masked(const char *unit_name, const pair *distro) {
