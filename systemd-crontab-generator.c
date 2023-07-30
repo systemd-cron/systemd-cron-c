@@ -67,7 +67,7 @@
 static const char *arg_dest = "/tmp";
 bool debug = false;
 
-const char *daysofweek[] = {"Sun","Mon","Tue","Wed","Thu","Fri","Sat"};
+const char *daysofweek[] = {"Sun","Mon","Tue","Wed","Thu","Fri","Sat","Sun"};
 const char *isdow = "0123456";
 
 void log_msg(int level, char *message, char *message2) {
@@ -352,6 +352,10 @@ static int parse_crontab(const char *dirname, const char *filename, char *userta
                                 continue;
                           }
                       } else {
+                          if (strstr(line, "/etc/cron.hourly") != NULL) continue;
+                          if (strstr(line, "/etc/cron.daily") != NULL) continue;
+                          if (strstr(line, "/etc/cron.weekly") != NULL) continue;
+                          if (strstr(line, "/etc/cron.monthly") != NULL) continue;
                           sscanf(line, "%24s %24s %24s %24s %24s %n", m, h, dom, mon, dow, &skipped);
                           command = line + skipped;
                       }
@@ -446,6 +450,8 @@ static int parse_crontab(const char *dirname, const char *filename, char *userta
                     asprintf(&unit, "cron-%s-%s-%d", filename, user, seq_curr->val);
                 }
 
+                // WIP cut this in a function to be called by parse_parts_dir()
+
                 asprintf(&outf, "%s/%s.timer", arg_dest, unit);
                 outp = fopen(outf, "w");
                 if(outp == NULL) {
@@ -535,6 +541,8 @@ static int parse_crontab(const char *dirname, const char *filename, char *userta
                 free(schedule);
                 free(unit);
                 free(outf);
+
+                // end WIP
         }
         free(fullname);
         free(timers_dir);
@@ -560,6 +568,18 @@ static int parse_crontab(const char *dirname, const char *filename, char *userta
         return 0;
 }
 
+bool is_native(const char *unit_name) {
+	struct stat sb;
+	char *sys_unit;
+	char *etc_unit;
+	asprintf(&sys_unit, "/usr/lib/systemd/system/%s.timer", unit_name);
+	asprintf(&etc_unit, "/etc/systemd/system/%s.timer", unit_name);
+	bool native = (stat(sys_unit, &sb) != -1) || (stat(etc_unit, &sb) != -1);
+	free(sys_unit);
+	free(etc_unit);
+	return native;
+}
+
 int parse_dir(bool system, const char *dirname) {
 	DIR *dirp;
 	struct dirent *dent;
@@ -577,15 +597,7 @@ int parse_dir(bool system, const char *dirname) {
                         log_msg(5, "ignoring /etc/cron.d/", dent->d_name);
                         continue;
                     }
-                    struct stat sb;
-                    char *sys_unit;
-                    char *etc_unit;
-                    asprintf(&sys_unit, "/usr/lib/systemd/system/%s.timer", dent->d_name);
-                    asprintf(&etc_unit, "/etc/systemd/system/%s.timer", dent->d_name);
-                    bool native = (stat(sys_unit, &sb) != -1) || (stat(etc_unit, &sb) != -1);
-                    free(sys_unit);
-                    free(etc_unit);
-                    if (native) {
+                    if (is_native(dent->d_name)) {
                         log_msg(5, "ignoring because native timer is present: /etc/cron.d/", dent->d_name);
                         continue;
                     }
@@ -594,6 +606,38 @@ int parse_dir(bool system, const char *dirname) {
                     parse_crontab(dirname, dent->d_name, dent->d_name, false);
 	}
         closedir(dirp);
+        return 0;
+}
+
+int parse_parts_dir(const char *period) {
+        char *dirname;
+        asprintf(&dirname, "/etc/cron.%s", period);
+
+	DIR *dirp;
+	struct dirent *dent;
+
+	dirp = opendir(dirname);
+	if (dirp == NULL) {
+		log_msg(5, "cannot open ", dirname);
+		return 0;
+	}
+
+	while ((dent = readdir(dirp))) {
+		if (dent->d_name[0] == '.') // '.', '..', '.placeholder'
+		    continue;
+		if (strstr(dent->d_name, ".dpkg-") != NULL) {
+			log_msg(5, "ignoring /etc/cron.XXX/", dent->d_name); // TODO
+			continue;
+		}
+                if (!strcmp(dent->d_name, "0anacron")) continue;
+                if (is_native(dent->d_name)) continue;
+
+		// WIP
+                printf("TODO %s/%s\n", dirname, dent->d_name);
+
+	}
+        closedir(dirp);
+        free(dirname);
         return 0;
 }
 
@@ -613,6 +657,11 @@ int main(int argc, char *argv[]) {
         parse_crontab("/etc", "crontab", NULL, false);
         parse_crontab("/etc", "anacrontab", "root", true);
         parse_dir(true, "/etc/cron.d");
+        parse_parts_dir("hourly");
+        parse_parts_dir("daily");
+        parse_parts_dir("weekly");
+        parse_parts_dir("monthly");
+        parse_parts_dir("yearly");
 
         if (stat(USER_CRONTABS, &sb) != -1) {
             // /var is available
