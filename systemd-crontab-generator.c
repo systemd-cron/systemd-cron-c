@@ -315,7 +315,10 @@ void generate_unit(const char *unit,
     free(outf);
 }
 
-static int parse_crontab(const char *dirname, const char *filename, char *usertab, bool anacrontab) {
+static int parse_crontab(const char *dirname,
+                         const char *filename,
+                         const char *usertab,
+                         bool anacrontab) {
         char *fullname;
         asprintf(&fullname, "%s/%s", dirname, filename);
 
@@ -475,10 +478,12 @@ static int parse_crontab(const char *dirname, const char *filename, char *userta
                                 continue;
                           }
                       } else {
-                          if (strstr(line, "/etc/cron.hourly") != NULL) continue;
-                          if (strstr(line, "/etc/cron.daily") != NULL) continue;
-                          if (strstr(line, "/etc/cron.weekly") != NULL) continue;
-                          if (strstr(line, "/etc/cron.monthly") != NULL) continue;
+                          if (!strcmp(fullname, "/etc/crontab")) {
+                              if (strstr(line, "/etc/cron.hourly") != NULL) continue;
+                              if (strstr(line, "/etc/cron.daily") != NULL) continue;
+                              if (strstr(line, "/etc/cron.weekly") != NULL) continue;
+                              if (strstr(line, "/etc/cron.monthly") != NULL) continue;
+                          }
                           sscanf(line, "%24s %24s %24s %24s %24s %n", m, h, dom, mon, dow, &skipped);
                           command = line + skipped;
                       }
