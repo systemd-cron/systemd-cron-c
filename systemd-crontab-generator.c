@@ -179,6 +179,17 @@ struct text_dict* text_dict_set(struct text_dict *head, char *key, char *value) 
     return head;
 }
 
+void text_dict_free(struct text_dict *head) {
+    struct text_dict *curr = head;
+    while(curr) {
+        free(curr->key);
+        free(curr->val);
+        head = curr->next;
+        free(curr);
+        curr = head;
+    }
+}
+
 struct int_dict
 {
     char *key;
@@ -344,7 +355,6 @@ static int parse_crontab(const char *dirname,
     char *pos_blank;
 
     env *head = NULL;
-    env *curr = NULL;
 
     /* out */
     sequence *seq_head = NULL;
@@ -601,14 +611,7 @@ static int parse_crontab(const char *dirname,
     free(fullname);
     fclose(fp);
 
-    curr = head;
-    while(curr) {
-        free(curr->key);
-        free(curr->val);
-        head = curr->next;
-        free(curr);
-        curr = head;
-    }
+    text_dict_free(head);
 
     seq_curr = seq_head;
     while(seq_curr) {
@@ -693,15 +696,26 @@ int parse_parts_dir(const char *period, const int delay) {
         asprintf(&fullname, "%s/%s", dirname, dent->d_name);
         asprintf(&unit, "cron-%s-%s", period, dent->d_name);
 
-        if (dent->d_name[0] == '.') // '.', '..', '.placeholder'
-            continue;
-        if (strstr(dent->d_name, ".dpkg-") != NULL) {
-            log_msg(5, "ignoring ", fullname);
+        if (dent->d_name[0] == '.') { // '.', '..', '.placeholder'
+            free(fullname);
+            free(unit);
             continue;
         }
-        if (!strcmp(dent->d_name, "0anacron")) continue;
+        if (strstr(dent->d_name, ".dpkg-") != NULL) {
+            log_msg(5, "ignoring ", fullname);
+            free(fullname);
+            free(unit);
+            continue;
+        }
+        if (!strcmp(dent->d_name, "0anacron")) {
+            free(fullname);
+            free(unit);
+            continue;
+        };
         if (is_masked(dent->d_name, PART2TIMER)) {
             log_msg(5, "ignoring because native timer is present: ", fullname);
+            free(fullname);
+            free(unit);
             continue;
         }
 
@@ -721,11 +735,11 @@ int parse_parts_dir(const char *period, const int delay) {
             false,      //batch
             NULL        //environment
         );
+        free(fullname);
+        free(unit);
     }
     closedir(dirp);
     free(dirname);
-    free(fullname);
-    free(unit);
     return 0;
 }
 
