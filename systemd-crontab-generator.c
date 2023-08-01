@@ -79,8 +79,9 @@ pair PART2TIMER[5] = {
     {NULL, NULL},
 };
 
-pair CROND2TIMER[3] = {
+pair CROND2TIMER[4] = {
     {"ntpsec", "ntpsec-rotate-stats"},
+    {"ntpsec-ntpviz", "ntpviz-daily"},
     {"sysstat", "sysstat-collect"},
     {NULL, NULL},
 };
