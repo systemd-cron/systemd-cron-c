@@ -3,8 +3,18 @@ Source: https://github.com/systemd-cron/systemd-cron-c
 
 Files: *
 Copyright: © 2013 Shawn Landden <shawn@churchofgit.com>
+           © 2014-2016 Konstantin Stepanov <me@kstep.me>
            © 2014-2022 Alexandre Detiste <alexandre.detiste@gmail.com>
 License: GPL-2+
+
+Files: man/crontab.5
+Copyright: 1988, 1990, 1993, 1994, Paul Vixie <paul@vix.com>
+           1994, Ian Jackson <ian@davenant.greenend.org.uk>
+           1996-2005, Steve Greenland <stevegr@debian.org>
+           2005-2006, 2008-2012, Javier Fernández-Sanguino Peña <jfs@debian.org>
+           2010-2011, 2014 Christian Kastner <debian@kvr.at>
+           Numerous contributions via the Debian BTS copyright their respective authors
+License: Paul-Vixie's-license
 
 Files: units/*
 Copyright: © 2014, Dwayne Bent
@@ -42,3 +52,13 @@ License: MIT
  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  SOFTWARE.
+
+License: Paul-Vixie's-license
+ Distribute freely, except: don't remove my name from the source or
+ documentation (don't take credit for my work), mark your changes (don't
+ get me blamed for your possible bugs), don't alter or remove this
+ notice.  May be sold if buildable source is provided to buyer.  No
+ warranty of any kind, express or implied, is included with this
+ software; use at your own risk, responsibility for damages (if any) to
+ anyone resulting from the use of this software rests entirely with the
+ user.
