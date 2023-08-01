@@ -14,6 +14,26 @@ The crontabs are monitored by cron-update.path and are automatically translated 
 
 .SH FILES
 .TP
+.I /etc/cron.hourly
+Directory for scripts to be executed every hour.
+
+.TP
+.I /etc/cron.daily
+Directory for scripts to be executed every day.
+
+.TP
+.I /etc/cron.weekly
+Directory for scripts to be executed every week.
+
+.TP
+.I /etc/cron.monthly
+Directory for scripts to be executed every month.
+
+.TP
+.I /etc/cron.yearly
+Directory for scripts to be executed every year.
+
+.TP
 .I /etc/cron.d
 Directory for \fBcrontabs\fR to be executed on a custom schedule.
 The files in this folder must follow the \fBcrontab\fR(5) layout.
@@ -54,6 +74,7 @@ flag, while a regular cron+anacron setup won't catch-up the missed executions of
 .SB # systemctl enable cron.target
 
 .IP "View script output"
+.SB # journalctl -u cron-<schedule>
 
 .IP "Override some generated timer start time"
 .SB # systemctl edit cron-geoip-database-contrib-root-<...>.timer --full
