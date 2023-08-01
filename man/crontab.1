@@ -1,0 +1,73 @@
+.TH "CRONTAB" "1" "2014-12-10" "systemd-cron 2.0" "crontab"
+
+.SH NAME
+crontab - maintain crontab files for individual users
+
+.SH SYNOPSIS
+crontab [\-u user] file
+.br
+crontab [\-u user] [\-l | \-r | \-e | \-s] [\-i]
+.br
+crontab \-t CRONTAB
+
+.TP
+.B (blank)
+default operation is replace
+.TP
+.B -u, --user
+edit some other user's crontab
+.TP
+.B -l, --list
+list user's crontab
+.TP
+.B -r, --remove
+delete user's crontab
+.TP
+.B -e, --edit
+edit user's crontab
+.TP
+.B -s, --show
+show all user who have a crontab
+.TP
+.B -i, --ask
+prompt before deleting user's crontab
+.TP
+.B -t, --translate CRONTAB
+translate one cron recor and print the result to STDOUT
+
+.SH DESCRIPTION
+Crontab is the program used to let users install, deinstall or list
+recurrent jobs in the legacy cron format.
+.br
+Each user can have their own crontab, and though these are files in /var/spool/cron/crontabs,
+they are not intended to be edited directly.
+.br
+These jobs are then automatically translated in systemd Timers & Units
+by systemd-crontab-generator.
+
+.SH FILES
+.TP
+.I /var/spool/cron/crontabs
+Directory for users crontabs.
+.TP
+.I /etc/cron.allow
+list of users that can use crontab
+.TP
+.I /etc/cron.deny
+list of users that aren't allowed to use crontab
+.br
+(by default, only root can use crontab)
+
+.SH LIMITATIONS
+SELinux is not supported.
+.TP
+Some extra settings can only be tweaked with
+.PP
+    systemctl edit cron-<schedule>.[timer|service]
+.TP
+see systemd.cron(7) for more details.
+
+.SH AUTHOR
+Konstantin Stepanov <me@kstep.me>
+.br
+Alexandre Detiste <alexandre@detiste.be> for this manpage & setgid helper
