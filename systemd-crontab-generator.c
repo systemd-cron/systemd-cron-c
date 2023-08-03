@@ -67,11 +67,11 @@
 
 typedef struct pair
 {
-    char *part;
-    char *timer;
+    const char *part;
+    const char *timer;
 } pair;
 
-pair PART2TIMER[5] = {
+const pair PART2TIMER[] = {
     {"apt-compat", "apt-daily"},
     {"dpkg", "dpkg-db-backup"},
     {"plocate", "plocate-updatedb"},
@@ -79,7 +79,7 @@ pair PART2TIMER[5] = {
     {NULL, NULL},
 };
 
-pair CROND2TIMER[4] = {
+const pair CROND2TIMER[] = {
     {"ntpsec", "ntpsec-rotate-stats"},
     {"ntpsec-ntpviz", "ntpviz-daily"},
     {"sysstat", "sysstat-collect"},
@@ -330,7 +330,7 @@ void generate_unit(const char *unit,
 static int parse_crontab(const char *dirname,
                          const char *filename,
                          const char *usertab,
-                         bool anacrontab) {
+                         const bool anacrontab) {
     char *fullname;
     asprintf(&fullname, "%s/%s", dirname, filename);
 
@@ -648,7 +648,7 @@ bool is_masked(const char *unit_name, const pair *distro) {
     return false;
 }
 
-int parse_dir(bool system, const char *dirname) {
+int parse_dir(const bool system, const char *dirname) {
     DIR *dirp;
     struct dirent *dent;
 
