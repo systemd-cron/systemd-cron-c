@@ -1,0 +1,7 @@
+[Unit]
+Description=systemd-cron, clean loose timestamps
+Documentation=man:systemd-crontab-generator(8)
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/systemd-cron/remove_stale_stamps
